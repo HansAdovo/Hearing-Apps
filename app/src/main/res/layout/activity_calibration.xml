@@ -1,0 +1,433 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp"
+    android:background="#FFFFFF"
+    tools:context=".CalibrationActivity">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- Header with "Return to Title" button -->
+        <Button
+            android:id="@+id/returnToTitleButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Return to Title"
+            android:background="@null" />
+
+        <!-- Calibration Buttons -->
+        <Button
+            android:id="@+id/loadER3ALevels"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Load ER3A Levels" />
+
+        <Button
+            android:id="@+id/clearMeasuredLevels"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Clear Measured Levels" />
+
+        <Button
+            android:id="@+id/saveButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Save" />
+
+        <Button
+            android:id="@+id/saveAsNewButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Save as New" />
+
+        <Button
+            android:id="@+id/loadOtherButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Load Other" />
+
+        <Button
+            android:id="@+id/deleteCurrentButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Delete Current" />
+
+        <!-- Expected Sound Pressure Level -->
+
+        <!-- Current Setting -->
+        <TextView
+            android:id="@+id/currentSettingTextView"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/current_setting" />
+
+        <!-- Presentation Level Slider -->
+        <TextView
+            android:id="@+id/presentationLevelLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Presentation Level (dBHL)" />
+
+        <TextView
+            android:id="@+id/presentationLevelValue"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="70.0 dB" />
+
+        <SeekBar
+            android:id="@+id/presentationLevel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <!-- Frequency Sliders -->
+        <TextView
+            android:id="@+id/expectedSoundPressureLevel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Expected Sound Pressure Level for 70 dB HL (dB SPL)" />
+
+        <TextView
+            android:id="@+id/frequencyLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Adjust Measured Levels for Frequencies" />
+
+        <!-- Repeat this section for each frequency -->
+        <!-- 250 Hz -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/label_250Hz"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="250 Hz" />
+
+            <SeekBar
+                android:id="@+id/slider_250Hz"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1" />
+
+            <Button
+                android:id="@+id/playButton_250Hz"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Play" />
+
+            <TextView
+                android:id="@+id/measuredValue_250Hz"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="70.0 dB" />
+        </LinearLayout>
+
+        <!-- Repeat similar blocks for other frequencies -->
+        <!-- 500 Hz -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp">
+
+            <TextView
+                android:id="@+id/label_500Hz"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="500 Hz" />
+
+            <SeekBar
+                android:id="@+id/slider_500Hz"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1" />
+
+            <Button
+                android:id="@+id/playButton_500Hz"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Play" />
+
+            <TextView
+                android:id="@+id/measuredValue_500Hz"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="70.0 dB" />
+        </LinearLayout>
+
+        <!-- 750 Hz -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp">
+
+            <TextView
+                android:id="@+id/label_750Hz"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="750 Hz" />
+
+            <SeekBar
+                android:id="@+id/slider_750Hz"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1" />
+
+            <Button
+                android:id="@+id/playButton_750Hz"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Play" />
+
+            <TextView
+                android:id="@+id/measuredValue_750Hz"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="70.0 dB" />
+        </LinearLayout>
+
+        <!-- 1000 Hz -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp">
+
+            <TextView
+                android:id="@+id/label_1000Hz"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="1000 Hz" />
+
+            <SeekBar
+                android:id="@+id/slider_1000Hz"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1" />
+
+            <Button
+                android:id="@+id/playButton_1000Hz"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Play" />
+
+            <TextView
+                android:id="@+id/measuredValue_1000Hz"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="70.0 dB" />
+        </LinearLayout>
+
+        <!-- 1500 Hz -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp">
+
+            <TextView
+                android:id="@+id/label_1500Hz"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="1500 Hz" />
+
+            <SeekBar
+                android:id="@+id/slider_1500Hz"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1" />
+
+            <Button
+                android:id="@+id/playButton_1500Hz"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Play" />
+
+            <TextView
+                android:id="@+id/measuredValue_1500Hz"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="70.0 dB" />
+        </LinearLayout>
+
+        <!-- 2000 Hz -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp">
+
+            <TextView
+                android:id="@+id/label_2000Hz"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="2000 Hz" />
+
+            <SeekBar
+                android:id="@+id/slider_2000Hz"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1" />
+
+            <Button
+                android:id="@+id/playButton_2000Hz"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Play" />
+
+            <TextView
+                android:id="@+id/measuredValue_2000Hz"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="70.0 dB" />
+        </LinearLayout>
+
+        <!-- 3000 Hz -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp">
+
+            <TextView
+                android:id="@+id/label_3000Hz"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="3000 Hz" />
+
+            <SeekBar
+                android:id="@+id/slider_3000Hz"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1" />
+
+            <Button
+                android:id="@+id/playButton_3000Hz"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Play" />
+
+            <TextView
+                android:id="@+id/measuredValue_3000Hz"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="70.0 dB" />
+        </LinearLayout>
+
+        <!-- 4000 Hz -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp">
+
+            <TextView
+                android:id="@+id/label_4000Hz"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="4000 Hz" />
+
+            <SeekBar
+                android:id="@+id/slider_4000Hz"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1" />
+
+            <Button
+                android:id="@+id/playButton_4000Hz"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Play" />
+
+            <TextView
+                android:id="@+id/measuredValue_4000Hz"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="70.0 dB" />
+        </LinearLayout>
+
+        <!-- 6000 Hz -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp">
+
+            <TextView
+                android:id="@+id/label_6000Hz"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="6000 Hz" />
+
+            <SeekBar
+                android:id="@+id/slider_6000Hz"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1" />
+
+            <Button
+                android:id="@+id/playButton_6000Hz"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Play" />
+
+            <TextView
+                android:id="@+id/measuredValue_6000Hz"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="70.0 dB" />
+        </LinearLayout>
+
+        <!-- 8000 Hz -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp">
+
+            <TextView
+                android:id="@+id/label_8000Hz"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="8000 Hz" />
+
+            <SeekBar
+                android:id="@+id/slider_8000Hz"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1" />
+
+            <Button
+                android:id="@+id/playButton_8000Hz"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Play" />
+
+            <TextView
+                android:id="@+id/measuredValue_8000Hz"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="70.0 dB" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>
