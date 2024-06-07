@@ -20,8 +20,8 @@
     <string name="remove_last">Remove Last</string>
     <string name="load_protocol">Load Protocol</string>
     <string name="save_protocol">Save Protocol</string>
-    <string name="pediatric_test">Pediatric Test</string>
-    <string name="adult_test">Adult Test</string>
+    <string name="MCL_test">MCL Test</string>
+    <string name="Threshold_test">Threshold Test</string>
     <string name="delete_current_protocol">Delete Current Protocol</string>
     <string name="clear_all">Clear All</string>
     <string name="pediatricPracticeButton">Pediatric Practice</string>
@@ -32,16 +32,14 @@
     <string name="save_as_new">Save as New</string>
     <string name="load_other">Load Other</string>
     <string name="delete_current">Delete Current</string>
-    <string name="expected_sound_pressure_level">Expected Sound Pressure Level for 70 dB HL (dB SPL)</string>
-    <string name="presentation_level">Presentation Level (dBHL)</string>
-    <string name="left_measured_level">Left Measured Level for 70 dB HL (db SPL)</string>
-    <string name="right_measured_level">Right Measured Level for 70 dB HL (dB SPL)</string>
+    <string name="presentation_level">Presentation Level : 70 dBHL</string>
+    <string name="left_measured_level">"Left Measured Level "</string>
+    <string name="right_measured_level">Right Measured Level</string>
     <string name="export_all_patient_data">Export All Patient Data</string>
     <string name="delete_all_patient_profiles">Delete All Patient Profiles</string>
     <string name="table_cell_action">Table Cell Action</string>
     <string name="current_frequency">Current Frequency</string>
-    <string name="adjust_measured_levels_for_frequencies">Adjust Measured Levels For Frequencies</string>
-    <string name="play">Play</string>
+    <string name="play">Play Tone</string>
     <string name="confirm">Confirm</string>
     <string name="setting_name_empty">Setting name cannot be empty</string>
     <string name="cancel">Cancel</string>
@@ -77,4 +75,13 @@
     <string name="pause">Pause</string>
     <string name="no_sound">No sound</string>
     <string name="test_progress">Test Progress: %1$d%%</string>
+    <string name="expected_level">Expected Level</string>
+    <string name="frequency">Frequency</string>
+    <string name="adjust_level">Adjust db SPL levels for 70 dbHL below</string>
+    <string name="Playsound">Plays sound</string>
+    <string name="mcl_test_instructions">"After each tone, press the button corresponding to how the volume feels to you: Too Soft, Comfortable but Slightly Soft, Most Comfortable, or Too Loud. "</string>
+    <string name="too_soft">Too Soft</string>
+    <string name="comfortable_but_slightly_soft">Comfortable but Slightly Soft</string>
+    <string name="most_comfortable">Most Comfortable</string>
+    <string name="too_loud">Too Loud</string>
 </resources>

@@ -4,7 +4,6 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;
-import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -18,7 +17,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -30,7 +28,7 @@ public class TestActivity extends AppCompatActivity {
     private TextView txtEarOrder, txtTestSequenceLabel, txtTestSequence;
     private Button btnLEarOnly, btnREarOnly, btnLEarToREar, btnREarToLEar;
     private Button btnReturnToTitle, btnRemoveLast, btnLoadProtocol, btnSaveProtocol;
-    private Button btnPediatricTest, btnAdultTest, btnDeleteCurrentProtocol, btnClearAll;
+    private Button btnMCLTest, btnThresholdTest, btnDeleteCurrentProtocol, btnClearAll;
     private Button btnAddFrequency;
     private ArrayList<String> testSequence;
     private String earOrder;
@@ -68,8 +66,8 @@ public class TestActivity extends AppCompatActivity {
         btnRemoveLast = findViewById(R.id.removeLastbutton);
         btnLoadProtocol = findViewById(R.id.loadProtocolbutton);
         btnSaveProtocol = findViewById(R.id.saveProtocolbutton);
-        btnPediatricTest = findViewById(R.id.pediatricTestButton);
-        btnAdultTest = findViewById(R.id.adultTestButton);
+        btnMCLTest = findViewById(R.id.MCLTestButton);
+        btnThresholdTest = findViewById(R.id.ThresholdTestButton);
         btnDeleteCurrentProtocol = findViewById(R.id.deletecurrentProtocolButton);
         btnClearAll = findViewById(R.id.clearAllbutton);
         btnAddFrequency = findViewById(R.id.addFrequencyButton);
@@ -121,7 +119,9 @@ public class TestActivity extends AppCompatActivity {
         btnREarOnly.setOnClickListener(view -> updateEarOrder(getString(R.string.rear_only)));
         btnLEarToREar.setOnClickListener(view -> updateEarOrder(getString(R.string.lear_to_rear)));
         btnREarToLEar.setOnClickListener(view -> updateEarOrder(getString(R.string.rear_to_lear)));
-        btnAdultTest.setOnClickListener(view -> showPatientInfoDialog());
+        btnThresholdTest.setOnClickListener(view -> showPatientInfoDialog());
+        btnMCLTest.setOnClickListener(view -> showMCLPatientInfoDialog());
+
     }
 
     private void updateTexts() {
@@ -134,8 +134,8 @@ public class TestActivity extends AppCompatActivity {
         btnRemoveLast.setText(getString(R.string.remove_last));
         btnLoadProtocol.setText(getString(R.string.load_protocol));
         btnSaveProtocol.setText(getString(R.string.save_protocol));
-        btnPediatricTest.setText(getString(R.string.pediatric_test));
-        btnAdultTest.setText(getString(R.string.adult_test));
+        btnMCLTest.setText(getString(R.string.MCL_test));
+        btnThresholdTest.setText(getString(R.string.Threshold_test));
         btnDeleteCurrentProtocol.setText(getString(R.string.delete_current_protocol));
         btnClearAll.setText(getString(R.string.clear_all));
         btnAddFrequency.setText(getString(R.string.add_frequency));
@@ -284,7 +284,48 @@ public class TestActivity extends AppCompatActivity {
 
                 Log.d("TestActivity", "EarOrder before starting TestInstructionActivity: " + earOrder);
 
-                Intent intent = new Intent(TestActivity.this, TestInstructionActivity.class);
+                Intent intent = new Intent(TestActivity.this, TestThresholdInstructionActivity.class);
+                intent.putExtra("patientGroup", patientGroup);
+                intent.putExtra("patientName", patientName);
+                intent.putExtra("EarOrder", earOrder);
+                startActivity(intent);
+            } else {
+                Toast.makeText(this, R.string.patient_info_empty, Toast.LENGTH_SHORT).show();
+            }
+        });
+        builder.setNegativeButton(R.string.cancel, (dialog, which) -> dialog.cancel());
+
+        builder.show();
+    }
+
+    private void showMCLPatientInfoDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle(R.string.enter_patient_info);
+
+        final EditText groupInput = new EditText(this);
+        groupInput.setHint(R.string.patient_group);
+        final EditText nameInput = new EditText(this);
+        nameInput.setHint(R.string.patient_name);
+
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.addView(groupInput);
+        layout.addView(nameInput);
+        builder.setView(layout);
+
+        builder.setPositiveButton(R.string.confirm, (dialog, which) -> {
+            String patientGroup = groupInput.getText().toString().trim();
+            String patientName = nameInput.getText().toString().trim();
+            if (!patientGroup.isEmpty() && !patientName.isEmpty()) {
+                SharedPreferences.Editor editor = prefs.edit();
+                editor.putString("patientGroup", patientGroup);
+                editor.putString("patientName", patientName);
+                editor.putString("EarOrder", earOrder);
+                editor.apply();
+
+                Log.d("TestActivity", "EarOrder before starting TestMCLInstructionActivity: " + earOrder);
+
+                Intent intent = new Intent(TestActivity.this, TestMCLInstructionActivity.class);
                 intent.putExtra("patientGroup", patientGroup);
                 intent.putExtra("patientName", patientName);
                 intent.putExtra("EarOrder", earOrder);

@@ -2,7 +2,10 @@ package com.example.frontendhearingampapp;
 
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.media.MediaPlayer;
+import android.media.AudioAttributes;
+import android.media.AudioFormat;
+import android.media.AudioManager;
+import android.media.AudioTrack;
 import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
@@ -20,7 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
-public class TestActualActivity extends AppCompatActivity {
+public class TestThresholdActivity extends AppCompatActivity {
 
     private Button btnReturnToTitle;
     private Button btnRepeat;
@@ -32,9 +35,9 @@ public class TestActualActivity extends AppCompatActivity {
     private TextView txtTestProgress;
 
     private Handler handler;
-    private Runnable testRunnable;
 
     private boolean isPaused = false;
+    private boolean isTestInProgress = false; // Flag to track if a test is in progress
     private int currentFrequencyIndex = 0;
     private int currentVolumeLevel = 50; // Start at 50 dB HL
     private String[] frequencies;
@@ -43,38 +46,39 @@ public class TestActualActivity extends AppCompatActivity {
     private String patientGroup;
     private String patientName;
 
-    private MediaPlayer mediaPlayer;
     private Animation shakeAnimation;
 
     private int shapeWithSound; // 0 for top, 1 for bottom, 2 for no sound
     private Random random;
 
     private SharedPreferences calibrationPrefs;
-    private float[] calibratedLevels = new float[10];
+    private float[] desiredSPLLevelsLeft = new float[10];
+    private float[] desiredSPLLevelsRight = new float[10];
     private String currentSettingName;
 
-    private boolean initialPhase = true;
     private int stepCount = 0;
-
-    private int correctCount = 0;
-    private int incorrectCount = 0;
-    private static final int MAX_CORRECT_COUNT = 2; // Define the threshold for correct answers
-    private static final int MAX_INCORRECT_COUNT = 3; // Define the threshold for incorrect answers
 
     private static final int MIN_VOLUME_DB_HL = 0;
     private static final int MAX_VOLUME_DB_HL = 100;
 
     private boolean thresholdFound = false; // Flag to indicate if threshold is found
-    private boolean confirmMaxMinLevel = false; // Flag to confirm max/min level
 
     private Boolean lastDirectionUp = null;
 
+    private int lastFrequency;
+    private int lastShapeWithSound;
+
+    private int noSoundCount = 0;
+    private int soundTestCount = 0;
+
     private List<Integer> reversalLevels = new ArrayList<>();
+    private AudioTrack audioTrack;
+    private Thread audioThread;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_test_actual);
+        setContentView(R.layout.activity_test_threshold);
 
         btnReturnToTitle = findViewById(R.id.btnReturnToTitle);
         btnRepeat = findViewById(R.id.btnRepeat);
@@ -89,7 +93,7 @@ public class TestActualActivity extends AppCompatActivity {
         txtInstructions.setText(instructions);
 
         btnReturnToTitle.setOnClickListener(view -> {
-            Intent intent = new Intent(TestActualActivity.this, MainActivity.class);
+            Intent intent = new Intent(TestThresholdActivity.this, MainActivity.class);
             startActivity(intent);
             finish(); // Finish current activity to release resources
         });
@@ -102,7 +106,6 @@ public class TestActualActivity extends AppCompatActivity {
         imageBottomShape.setOnClickListener(view -> handleShapePress(1));
 
         handler = new Handler();
-        testRunnable = this::runTestSequence;
         shakeAnimation = AnimationUtils.loadAnimation(this, R.anim.shake);
         random = new Random();
 
@@ -151,122 +154,195 @@ public class TestActualActivity extends AppCompatActivity {
 
     private void loadCalibrationSettings() {
         currentSettingName = calibrationPrefs.getString("currentSettingName", "");
-        for (int i = 0; i < calibratedLevels.length; i++) {
-            calibratedLevels[i] = calibrationPrefs.getFloat("measuredLevel_" + currentSettingName + "_" + i, 70.0f);
+        for (int i = 0; i < desiredSPLLevelsLeft.length; i++) {
+            desiredSPLLevelsLeft[i] = calibrationPrefs.getFloat("desiredSPLLevelLeft_" + currentSettingName + "_" + i, 70.0f);
+            desiredSPLLevelsRight[i] = calibrationPrefs.getFloat("desiredSPLLevelRight_" + currentSettingName + "_" + i, 70.0f);
+            Log.d("TestActualActivity", "Loaded desiredSPLLevelLeft[" + i + "] = " + desiredSPLLevelsLeft[i]);
+            Log.d("TestActualActivity", "Loaded desiredSPLLevelRight[" + i + "] = " + desiredSPLLevelsRight[i]);
         }
     }
 
     private void startTestSequence() {
-        handler.postDelayed(testRunnable, 1000);
+        runTestSequence(); // Start the test sequence immediately
     }
 
     private void runTestSequence() {
-        if (isPaused) return;
+        if (isPaused || isTestInProgress) return;
+
+        isTestInProgress = true; // Mark the test as in progress
 
         if (currentFrequencyIndex < frequencies.length) {
             String frequencyStr = frequencies[currentFrequencyIndex];
             int frequency = Integer.parseInt(frequencyStr.replace(" Hz", ""));
-            playTone(frequency, calibratedLevels[getFrequencyIndex(frequency)]);
+            int shapeWithSound;
+            // Ensure "No Sound" does not occur more than twice in a row and there are more sound tests than "No Sound" tests
+            if (noSoundCount >= 2 || (soundTestCount < noSoundCount)) {
+                shapeWithSound = random.nextInt(2); // Only allow top or bottom shapes
+                noSoundCount = 0; // Reset "No Sound" count
+            } else {
+                shapeWithSound = random.nextInt(3); // Randomly choose shape to produce sound or no sound (0 for top, 1 for bottom, 2 for no sound)
+            }
+
+            if (shapeWithSound == 2) {
+                noSoundCount++;
+                Log.d("TestActualActivity", "No sound test being conducted");
+            } else {
+                soundTestCount++;
+            }
+            playTone(frequency, shapeWithSound);
         } else {
-            if (("left".equals(currentEar) && "L. Ear -> R. Ear".equalsIgnoreCase(earOrder)) ||
-                    ("right".equals(currentEar) && "R. Ear -> L. Ear".equalsIgnoreCase(earOrder))) {
+            if ((currentEar.equals("left") && earOrder.equalsIgnoreCase("L. Ear -> R. Ear")) ||
+                    (currentEar.equals("right") && earOrder.equalsIgnoreCase("R. Ear -> L. Ear"))) {
                 currentEar = currentEar.equals("left") ? "right" : "left";
                 currentFrequencyIndex = 0;
-                initialPhase = true;
                 stepCount = 0;
                 currentVolumeLevel = 50; // Reset volume level for the other ear
                 thresholdFound = false;
-                confirmMaxMinLevel = false; // Reset flag for the other ear
+                isTestInProgress = false; // Mark the test as finished for the current ear
+                runTestSequence(); // Continue with the test for the other ear immediately
             } else {
                 showResults();
             }
         }
     }
 
-    private int getFrequencyIndex(int frequency) {
-        switch (frequency) {
-            case 250: return 0;
-            case 500: return 1;
-            case 750: return 2;
-            case 1000: return 3;
-            case 1500: return 4;
-            case 2000: return 5;
-            case 3000: return 6;
-            case 4000: return 7;
-            case 6000: return 8;
-            case 8000: return 9;
-            default: return 0;
+    private void playTone(int frequency, int shapeWithSound) {
+        this.shapeWithSound = shapeWithSound; // Set the shape with sound from the parameter
+
+        // Store the last test parameters
+        lastFrequency = frequency;
+        lastShapeWithSound = shapeWithSound;
+
+        stopTone();
+
+        int sampleRate = 44100;
+        int numSamples = sampleRate * 2; // 2 seconds of audio
+        double[] sample = new double[numSamples];
+        byte[] generatedSnd = new byte[2 * numSamples];
+
+        double freqOfTone = frequency;
+
+        for (int i = 0; i < numSamples; ++i) {
+            sample[i] = Math.sin(2 * Math.PI * i / (sampleRate / freqOfTone));
         }
-    }
 
-    private void playTone(int frequency, float calibratedLevel) {
-        shapeWithSound = random.nextInt(3); // Randomly choose shape to produce sound or no sound (0 for top, 1 for bottom, 2 for no sound)
+        int idx = 0;
+        for (final double dVal : sample) {
+            final short val = (short) ((dVal * 32767));
+            generatedSnd[idx++] = (byte) (val & 0x00ff);
+            generatedSnd[idx++] = (byte) ((val & 0xff00) >>> 8);
+        }
 
-        resetMediaPlayer();
+        audioTrack = new AudioTrack(
+                new AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                        .build(),
+                new AudioFormat.Builder()
+                        .setSampleRate(sampleRate)
+                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                        .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
+                        .build(),
+                numSamples * 2,
+                AudioTrack.MODE_STATIC,
+                AudioManager.AUDIO_SESSION_ID_GENERATE
+        );
 
-        mediaPlayer = MediaPlayer.create(this, getToneResource(frequency));
-        Log.d("TestActualActivity", "Playing tone at frequency: " + frequency + " Hz");
+        audioTrack.write(generatedSnd, 0, generatedSnd.length);
 
-        // Reset animations and handlers
-        handler.removeCallbacksAndMessages(null);
-        imageTopShape.clearAnimation();
-        imageBottomShape.clearAnimation();
+        // Retrieve and log the desired SPL value
+        float desiredSPL = currentEar.equals("left") ? desiredSPLLevelsLeft[getFrequencyIndex(frequency)] : desiredSPLLevelsRight[getFrequencyIndex(frequency)];
+        Log.d("TestActualActivity", "Desired SPL: " + desiredSPL);
 
-        // Convert currentVolumeLevel (dB HL) to dB SPL using calibration settings
-        float dB_SPL = currentVolumeLevel + (calibratedLevel - 70); // Adjust according to the calibration level
+        // Calculate the actual SPL based on the current dB HL level
+        float dB_SPL = desiredSPL + (currentVolumeLevel - 70);
+        Log.d("TestActualActivity", "Calculated dB SPL: " + dB_SPL);
 
-        // Ensure volume doesn't exceed the max allowed volume of 1.0
-        float volume = Math.max(0, Math.min(dB_SPL / 100, 1.0f));
+        // Calculate the amplitude
+        float volume = calculateAmplitude(dB_SPL, 100);
+        Log.d("TestActualActivity", "Amplitude: " + volume);
 
         if (currentEar.equals("left")) {
-            mediaPlayer.setVolume(volume, 0);
+            audioTrack.setStereoVolume(volume, 0);
         } else {
-            mediaPlayer.setVolume(0, volume);
+            audioTrack.setStereoVolume(0, volume);
         }
 
         Log.d("TestActualActivity", "Setting volume: Left = " + (currentEar.equals("left") ? volume : 0) + ", Right = " + (currentEar.equals("right") ? volume : 0));
+        Log.d("TestActualActivity", "Frequency: " + frequency + " Hz, Current dB HL: " + currentVolumeLevel + ", Calculated dB SPL: " + dB_SPL + ", Amplitude: " + volume);
 
-        // Log the test being performed
-        Log.d("TestActualActivity", "Test: " + (shapeWithSound == 0 ? "Top Shape with Sound" : shapeWithSound == 1 ? "Bottom Shape with Sound" : "No Sound"));
+        if (shapeWithSound == 2) {
+            Log.d("TestActualActivity", "No sound for this test");
+        }
 
-        // First shape shakes
+        // Disable buttons during test
+        setButtonsEnabled(false);
+
+        // First shape shakes and plays sound if applicable
         imageTopShape.startAnimation(shakeAnimation);
         if (shapeWithSound == 0) {
-            mediaPlayer.start();
             Log.d("TestActualActivity", "Top shape shakes and plays sound");
+            audioTrack.play();
         }
         handler.postDelayed(() -> {
             imageTopShape.clearAnimation();
             if (shapeWithSound == 0) {
-                mediaPlayer.stop(); // Ensure sound stops after the animation
+                audioTrack.stop();
             }
 
-            // Second shape shakes
+            // Second shape shakes and plays sound if applicable
             imageBottomShape.startAnimation(shakeAnimation);
             if (shapeWithSound == 1) {
-                mediaPlayer.start();
                 Log.d("TestActualActivity", "Bottom shape shakes and plays sound");
+                audioTrack.play();
             }
             handler.postDelayed(() -> {
                 imageBottomShape.clearAnimation();
                 if (shapeWithSound == 1) {
-                    mediaPlayer.stop(); // Ensure sound stops after the animation
+                    audioTrack.stop();
                 }
-            }, 1000);
-        }, 1000);
+                isTestInProgress = false; // Mark the test as finished
+                setButtonsEnabled(true); // Re-enable buttons after test
+            }, 2000); // Let the second shape shake for 2 seconds
+        }, 2000); // Let the first shape shake for 2 seconds
 
-        mediaPlayer.setOnCompletionListener(mp -> {
-            handler.postDelayed(() -> {
-                imageTopShape.clearAnimation();
-                imageBottomShape.clearAnimation();
-            }, 1000);
-        });
+        handler.postDelayed(() -> {
+            imageTopShape.clearAnimation();
+            imageBottomShape.clearAnimation();
+            if (shapeWithSound != 2) {
+                audioTrack.stop();
+            }
+            isTestInProgress = false; // Mark the test as finished
+            setButtonsEnabled(true); // Re-enable buttons after test
+        }, 4000); // Ensure to stop the tone after the total duration
+    }
+
+    private void setButtonsEnabled(boolean enabled) {
+        btnRepeat.setEnabled(enabled);
+        btnPause.setEnabled(enabled);
+        btnNoSound.setEnabled(enabled);
+        imageTopShape.setEnabled(enabled);
+        imageBottomShape.setEnabled(enabled);
     }
 
     private void handleShapePress(int shapeIndex) {
-        if (thresholdFound) return; // Skip if threshold already found
+        if (thresholdFound || isTestInProgress) return; // Skip if threshold already found or test is in progress
 
         boolean isCorrect = (shapeIndex == shapeWithSound);
+        processUserResponse(isCorrect);
+    }
+
+    private void handleNoSound() {
+        if (thresholdFound || isTestInProgress) return; // Skip if threshold already found or test is in progress
+
+        boolean isCorrect = (shapeWithSound == 2);
+        if (isCorrect) {
+            Log.d("TestActualActivity", "User response: No Sound, Correct");
+        }
+        processUserResponse(isCorrect);
+    }
+
+    private void processUserResponse(boolean isCorrect) {
         int previousVolumeLevel = currentVolumeLevel;
         int nextVolumeLevel = getNextDbHL(isCorrect);
         Log.d("TestActualActivity", "User response: " + (isCorrect ? "Correct" : "Incorrect") + ", previous dB HL: " + previousVolumeLevel + ", current dB HL: " + nextVolumeLevel);
@@ -277,19 +353,15 @@ public class TestActualActivity extends AppCompatActivity {
         // Check if the direction has changed
         boolean directionChanged = (lastDirectionUp != null) && (lastDirectionUp != directionUp);
 
-        currentVolumeLevel = nextVolumeLevel;
-
-        if (isCorrect) {
-            correctCount++;
-            incorrectCount = 0;
+        if (isCorrect && shapeWithSound == 2) {
+            // Correct no sound response should not change the volume level
+            nextVolumeLevel = currentVolumeLevel;
         } else {
-            correctCount = 0;
-            incorrectCount++;
+            currentVolumeLevel = nextVolumeLevel;
+            stepCount++;
         }
 
-        stepCount++;
-
-        if (directionChanged && stepCount >= 2) {
+        if (directionChanged && previousVolumeLevel != currentVolumeLevel) {
             reversalLevels.add(previousVolumeLevel);
             Log.d("TestActualActivity", "Reversal added: " + previousVolumeLevel + " dB HL, Total reversals: " + reversalLevels.size());
         }
@@ -297,7 +369,14 @@ public class TestActualActivity extends AppCompatActivity {
         // Update last direction
         lastDirectionUp = directionUp;
 
-        if (reversalLevels.size() >= 4 || currentVolumeLevel == MIN_VOLUME_DB_HL || currentVolumeLevel == MAX_VOLUME_DB_HL) {
+        // Log if currentVolumeLevel is exactly at the minimum or maximum
+        if (currentVolumeLevel == MIN_VOLUME_DB_HL || currentVolumeLevel == MAX_VOLUME_DB_HL) {
+            Log.d("TestActualActivity", (currentVolumeLevel == MIN_VOLUME_DB_HL ? "Minimum" : "Maximum") + " dB HL reached.");
+        }
+
+        // Check for test termination condition
+        Log.d("TestActualActivity", "Checking termination condition: currentVolumeLevel = " + currentVolumeLevel);
+        if (reversalLevels.size() >= 4 || currentVolumeLevel <= MIN_VOLUME_DB_HL || currentVolumeLevel >= MAX_VOLUME_DB_HL) {
             if (reversalLevels.size() >= 4) {
                 int sum = 0;
                 for (int level : reversalLevels) {
@@ -306,46 +385,46 @@ public class TestActualActivity extends AppCompatActivity {
                 currentVolumeLevel = sum / reversalLevels.size();
                 thresholdFound = true;
                 Log.d("TestActualActivity", "Threshold found at frequency: " + frequencies[currentFrequencyIndex] + " Hz, volume level: " + currentVolumeLevel + " dB HL");
-            } else if (currentVolumeLevel == MIN_VOLUME_DB_HL || currentVolumeLevel == MAX_VOLUME_DB_HL) {
-                if (confirmMaxMinLevel) {
-                    thresholdFound = true;
-                    Log.d("TestActualActivity", "Threshold found at frequency: " + frequencies[currentFrequencyIndex] + " Hz, volume level: " + currentVolumeLevel + " dB HL");
-                } else {
-                    confirmMaxMinLevel = true;
-                    Log.d("TestActualActivity", (currentVolumeLevel == MIN_VOLUME_DB_HL ? "Minimum" : "Maximum") + " dB HL reached.");
-                }
+            } else if (currentVolumeLevel < MIN_VOLUME_DB_HL || currentVolumeLevel > MAX_VOLUME_DB_HL) {
+                thresholdFound = true;
+                currentVolumeLevel = (currentVolumeLevel < MIN_VOLUME_DB_HL) ? MIN_VOLUME_DB_HL : MAX_VOLUME_DB_HL;
+                Log.d("TestActualActivity", "Threshold found at frequency: " + frequencies[currentFrequencyIndex] + " Hz, volume level: " + currentVolumeLevel + " dB HL");
             }
 
             if (thresholdFound) {
                 currentFrequencyIndex++;
                 resetTestVariablesForNextFrequency();
+                if (currentFrequencyIndex >= frequencies.length) {
+                    updateTestProgress(); // Call this before showing results
+                    showResults();
+                    return;
+                }
             }
         }
 
         updateTestProgress();
-        handler.postDelayed(testRunnable, 1000);
+        runTestSequence();
     }
 
     private void resetTestVariablesForNextFrequency() {
         currentVolumeLevel = 50; // Reset volume level for the next frequency
-        correctCount = 0;
-        incorrectCount = 0;
         stepCount = 0;
         reversalLevels.clear();
         thresholdFound = false;
-        confirmMaxMinLevel = false;
         lastDirectionUp = null; // Reset last direction for the next frequency
     }
 
     private int getNextDbHL(boolean isCorrect) {
         int nextVolumeLevel = currentVolumeLevel;
         if (isCorrect) {
-            if (stepCount == 0) {
-                nextVolumeLevel -= 20;
-            } else if (stepCount == 1) {
-                nextVolumeLevel -= 10;
-            } else {
-                nextVolumeLevel -= 5;
+            if (shapeWithSound != 2) { // Only reduce volume for correct responses with sound
+                if (stepCount == 0) {
+                    nextVolumeLevel -= 20;
+                } else if (stepCount == 1) {
+                    nextVolumeLevel -= 10;
+                } else {
+                    nextVolumeLevel -= 5;
+                }
             }
         } else {
             if (stepCount == 0) {
@@ -356,80 +435,20 @@ public class TestActualActivity extends AppCompatActivity {
                 nextVolumeLevel += 5;
             }
         }
-        return Math.max(MIN_VOLUME_DB_HL, Math.min(MAX_VOLUME_DB_HL, nextVolumeLevel));
+        // Ensure the next volume level is within the allowed range
+        return Math.max(MIN_VOLUME_DB_HL - 1, Math.min(MAX_VOLUME_DB_HL + 1, nextVolumeLevel)); // Allow for one step beyond the min/max for proper checking
     }
 
     private void repeatCurrentTest() {
-        if (currentFrequencyIndex < frequencies.length) {
-            String frequencyStr = frequencies[currentFrequencyIndex];
-            int frequency = Integer.parseInt(frequencyStr.replace(" Hz", ""));
-            playTone(frequency, calibratedLevels[getFrequencyIndex(frequency)]);
-        }
+        if (isTestInProgress) return; // Prevent repeat if a test is already in progress
+        playTone(lastFrequency, lastShapeWithSound);
     }
 
     private void togglePauseTest() {
         isPaused = !isPaused;
         if (!isPaused) {
-            handler.postDelayed(testRunnable, 1000);
+            runTestSequence(); // Resume immediately
         }
-    }
-
-    private void handleNoSound() {
-        if (thresholdFound) return; // Skip if threshold already found
-
-        boolean isCorrect = (shapeWithSound == 2);
-        int previousVolumeLevel = currentVolumeLevel;
-
-        if (!isCorrect) { // Only penalize if it was a false positive
-            currentVolumeLevel = Math.min(currentVolumeLevel + (stepCount == 0 ? 20 : stepCount == 1 ? 10 : 5), MAX_VOLUME_DB_HL);
-            incorrectCount++;
-        } else {
-            correctCount = 0;
-        }
-
-        Log.d("TestActualActivity", "User response: No Sound, " + (isCorrect ? "Correct" : "Incorrect") + ", previous dB HL: " + previousVolumeLevel + ", current dB HL: " + currentVolumeLevel);
-
-        // Determine the direction of change
-        boolean directionUp = previousVolumeLevel < currentVolumeLevel;
-
-        // Check if the direction has changed
-        boolean directionChanged = (lastDirectionUp != null) && (lastDirectionUp != directionUp);
-
-        if (directionChanged && stepCount >= 2 && previousVolumeLevel != currentVolumeLevel) {
-            reversalLevels.add(previousVolumeLevel);
-            Log.d("TestActualActivity", "Reversal added: " + previousVolumeLevel + " dB HL, Total reversals: " + reversalLevels.size());
-        }
-
-        // Update last direction
-        lastDirectionUp = directionUp;
-
-        if (reversalLevels.size() >= 4 || currentVolumeLevel == MIN_VOLUME_DB_HL || currentVolumeLevel == MAX_VOLUME_DB_HL) {
-            if (reversalLevels.size() >= 4) {
-                int sum = 0;
-                for (int level : reversalLevels) {
-                    sum += level;
-                }
-                currentVolumeLevel = sum / reversalLevels.size();
-                thresholdFound = true;
-                Log.d("TestActualActivity", "Threshold found at frequency: " + frequencies[currentFrequencyIndex] + " Hz, volume level: " + currentVolumeLevel + " dB HL");
-            } else if (currentVolumeLevel == MIN_VOLUME_DB_HL || currentVolumeLevel == MAX_VOLUME_DB_HL) {
-                if (confirmMaxMinLevel) {
-                    thresholdFound = true;
-                    Log.d("TestActualActivity", "Threshold found at frequency: " + frequencies[currentFrequencyIndex] + " Hz, volume level: " + currentVolumeLevel + " dB HL");
-                } else {
-                    confirmMaxMinLevel = true;
-                    Log.d("TestActualActivity", (currentVolumeLevel == MIN_VOLUME_DB_HL ? "Minimum" : "Maximum") + " dB HL reached.");
-                }
-            }
-
-            if (thresholdFound) {
-                currentFrequencyIndex++;
-                resetTestVariablesForNextFrequency();
-            }
-        }
-
-        updateTestProgress();
-        handler.postDelayed(testRunnable, 1000);
     }
 
     private void updateTestProgress() {
@@ -460,21 +479,20 @@ public class TestActualActivity extends AppCompatActivity {
 
         if (currentFrequencyIndex >= frequencies.length) {
             // Handle ear switch logic based on ear order
-            if (("left".equals(currentEar) && "L. Ear -> R. Ear".equalsIgnoreCase(earOrder)) ||
-                    ("right".equals(currentEar) && "R. Ear -> L. Ear".equalsIgnoreCase(earOrder))) {
+            if ((currentEar.equals("left") && "L. Ear -> R. Ear".equalsIgnoreCase(earOrder)) ||
+                    (currentEar.equals("right") && "R. Ear -> L. Ear".equalsIgnoreCase(earOrder))) {
                 currentEar = currentEar.equals("left") ? "right" : "left";
                 currentFrequencyIndex = 0;
-                initialPhase = true;
                 stepCount = 0;
                 currentVolumeLevel = 50; // Reset volume level for the other ear
                 thresholdFound = false;
-                confirmMaxMinLevel = false; // Reset flag for the other ear
                 Log.d("TestActualActivity", "Switching to the other ear: " + currentEar);
+                runTestSequence(); // Ensure the test continues for the other ear immediately
             } else {
                 showResults();
             }
         } else {
-            handler.postDelayed(testRunnable, 1000);
+            runTestSequence(); // Start the next test immediately
         }
     }
 
@@ -503,51 +521,48 @@ public class TestActualActivity extends AppCompatActivity {
         }
     }
 
-    private int getToneResource(int frequency) {
-        // Map frequencies to resource IDs
+    private int getFrequencyIndex(int frequency) {
         switch (frequency) {
-            case 250:
-                return R.raw.tone_250hz;
-            case 500:
-                return R.raw.tone_500hz;
-            case 750:
-                return R.raw.tone_750hz;
-            case 1000:
-                return R.raw.tone_1000hz;
-            case 1500:
-                return R.raw.tone_1500hz;
-            case 2000:
-                return R.raw.tone_2000hz;
-            case 3000:
-                return R.raw.tone_3000hz;
-            case 4000:
-                return R.raw.tone_4000hz;
-            case 6000:
-                return R.raw.tone_6000hz;
-            case 8000:
-                return R.raw.tone_8000hz;
-            default:
-                return R.raw.tone_250hz; // Fallback
+            case 250: return 0;
+            case 500: return 1;
+            case 750: return 2;
+            case 1000: return 3;
+            case 1500: return 4;
+            case 2000: return 5;
+            case 3000: return 6;
+            case 4000: return 7;
+            case 6000: return 8;
+            case 8000: return 9;
+            default: return 0;
         }
     }
 
-    private void resetMediaPlayer() {
-        if (mediaPlayer != null) {
-            mediaPlayer.release();
-            mediaPlayer = null;
+    private float calculateAmplitude(float desiredDbSpl, float referenceDbSpl) {
+        return (float) Math.min(Math.max(Math.pow(10, (desiredDbSpl - referenceDbSpl) / 20), 0.0), 1.0); // Ensure the amplitude is between 0 and 1
+    }
+
+    private void stopTone() {
+        if (audioTrack != null) {
+            audioTrack.stop();
+            audioTrack.release();
+            audioTrack = null;
+        }
+        if (audioThread != null) {
+            audioThread.interrupt();
+            audioThread = null;
         }
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        resetMediaPlayer();
+        stopTone();
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        resetMediaPlayer();
+        stopTone();
         handler.removeCallbacksAndMessages(null); // Release handler resources
     }
 }

@@ -20,8 +20,8 @@
     <string name="remove_last">Eliminar Último</string>
     <string name="load_protocol">Cargar Protocolo</string>
     <string name="save_protocol">Guardar Protocolo</string>
-    <string name="pediatric_test">Prueba Pediátrica</string>
-    <string name="adult_test">Prueba de Adultos</string>
+    <string name="MCL_test">prueba de MCL</string>
+    <string name="Threshold_test">Prueba de umbral</string>
     <string name="delete_current_protocol">Eliminar Protocolo Actual</string>
     <string name="clear_all">Borrar Todo</string>
     <string name="pediatricPracticeButton">Práctica Pediátrica</string>
@@ -32,16 +32,14 @@
     <string name="save_as_new">Guardar como Nuevo</string>
     <string name="load_other">Cargar Otro</string>
     <string name="delete_current">Eliminar Actual</string>
-    <string name="expected_sound_pressure_level">" Nivel de Presión Sonora Esperado para 70 dB HL (dB SPL)"</string>
-    <string name="presentation_level">Nivel de Presentación (dB HL)</string>
-    <string name="left_measured_level">Nivel Medido Izquierdo para 70 dB HL (db SPL)</string>
-    <string name="right_measured_level">Nivel Medido Derecho para 70 dB HL (dB SPL)</string>
+    <string name="presentation_level">Nivel de Presentación: 70 dB HL</string>
+    <string name="left_measured_level">"Nivel Medido Izquierdo "</string>
+    <string name="right_measured_level">"Nivel Medido Derecho "</string>
     <string name="export_all_patient_data">Exportar Todos los Datos del Paciente</string>
     <string name="delete_all_patient_profiles">Eliminar Todos los Perfiles de Pacientes</string>
     <string name="table_cell_action">Acción de la Celda de la Tabla</string>
     <string name="current_frequency">Frecuencia Actual</string>
-    <string name="adjust_measured_levels_for_frequencies">Ajuste de los niveles medidos para las frecuencias</string>
-    <string name="play">Jugar</string>
+    <string name="play">Reproducir tono</string>
     <string name="confirm">Confirmar</string>
     <string name="setting_name_empty">El nombre de la configuración no puede estar vacío</string>
     <string name="cancel">Cancelar</string>
@@ -77,4 +75,13 @@
     <string name="pause">Pausa</string>
     <string name="no_sound">Sin sonido</string>
     <string name="test_progress">Progreso de la prueba: %1$d%%</string>
+    <string name="expected_level">Nivel esperado</string>
+    <string name="frequency">Frecuencia</string>
+    <string name="adjust_level">Ajuste los niveles de db SPL para 70 dbHL por debajo</string>
+    <string name="Playsound">Reproduce sonido</string>
+    <string name="mcl_test_instructions">Después de cada tono, presione el botón correspondiente a cómo le parece el volumen: Demasiado suave, Cómodo pero ligeramente suave, Más cómodo o Demasiado alto.</string>
+    <string name="too_soft">Muy suave</string>
+    <string name="comfortable_but_slightly_soft">Cómodo pero ligeramente suave</string>
+    <string name="most_comfortable">Más cómoda</string>
+    <string name="too_loud">Demasiado ruidosa</string>
 </resources>

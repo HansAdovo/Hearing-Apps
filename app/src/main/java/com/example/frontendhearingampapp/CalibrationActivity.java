@@ -1,14 +1,20 @@
 package com.example.frontendhearingampapp;
 
 import android.content.SharedPreferences;
-import android.media.MediaPlayer;
+import android.media.AudioAttributes;
+import android.media.AudioFormat;
+import android.media.AudioManager;
+import android.media.AudioTrack;
 import android.os.Bundle;
 import android.text.InputType;
+import android.util.Log;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.SeekBar;
+import android.widget.ImageButton;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.text.Editable;
+import android.text.TextWatcher;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
@@ -24,212 +30,152 @@ public class CalibrationActivity extends AppCompatActivity {
     private static final String SETTINGS_KEY = "settings";
 
     private Button loadER3ALevelsButton, clearMeasuredLevelsButton, saveButton, saveAsNewButton, loadOtherButton, deleteCurrentButton, btnReturnToTitle;
-    private TextView expectedSoundPressureLevel, presentationLevelLabel, presentationLevelValue, currentSettingTextView, frequencyLabel;
-    private SeekBar presentationLevel;
-    private SeekBar[] measuredLevelSeekBars = new SeekBar[10];
-    private Button[] playButtons = new Button[10];
-    private TextView[] measuredValueTextViews = new TextView[10];
-    private MediaPlayer[] tonePlayers = new MediaPlayer[10];
-    private int[] toneResIds = {
-            R.raw.tone_250hz,
-            R.raw.tone_500hz,
-            R.raw.tone_750hz,
-            R.raw.tone_1000hz,
-            R.raw.tone_1500hz,
-            R.raw.tone_2000hz,
-            R.raw.tone_3000hz,
-            R.raw.tone_4000hz,
-            R.raw.tone_6000hz,
-            R.raw.tone_8000hz
-    };
+    private TextView currentSettingTextView;
+    private EditText[] expectedLevelEdits = new EditText[10];
+    private EditText[] leftMeasuredLevelEdits = new EditText[10];
+    private EditText[] rightMeasuredLevelEdits = new EditText[10];
+    private ImageButton[] playButtons = new ImageButton[10];
+    private AudioTrack[] audioTracks = new AudioTrack[10];
+    private Thread[] audioThreads = new Thread[10];
 
-    private float[] er3aLevels = {84.0f, 75.5f, 72.0f, 70.0f, 72.0f, 73.0f, 73.5f, 75.5f, 72.0f, 70.0f}; // Values from the image
+    private int[] frequencies = {250, 500, 750, 1000, 1500, 2000, 3000, 4000, 6000, 8000};
+
+    private float[] er3aLevels = {84.0f, 75.5f, 72.0f, 70.0f, 72.0f, 73.0f, 73.5f, 75.5f, 72.0f, 70.0f};
+    private float[] leftMeasuredER3ALevels = {83.9f, 86.9f, 88.8f, 86.5f, 85.6f, 88.1f, 89.5f, 83.2f, 71.0f, 56.7f};
+    private float[] rightMeasuredER3ALevels = {83.9f, 86.9f, 88.8f, 86.5f, 85.6f, 88.1f, 89.5f, 83.2f, 71.0f, 56.7f};
+
+    private float[] desiredSPLLevelsLeft = new float[10];
+    private float[] desiredSPLLevelsRight = new float[10];
 
     private String currentSettingName = "";
-    private boolean isModified = false;
+
+    private int currentlyPlayingIndex = -1;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        LocaleManager.loadLocale(this);  // Load the current locale
+        LocaleManager.loadLocale(this);
         setContentView(R.layout.activity_calibration);
 
         initViews();
         setupClickListeners();
-        setupTonePlayers();
 
-        // Load the current setting name and its values from SharedPreferences
         loadCurrentSetting();
-        updateTexts(); // Update text elements
+        addTextChangeListeners();
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        // Do not save settings on pause
+        stopAllTones();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
         loadCurrentSetting();
-        updateTexts(); // Update text elements
     }
 
     private void initViews() {
-        expectedSoundPressureLevel = findViewById(R.id.expectedSoundPressureLevel);
-        presentationLevelLabel = findViewById(R.id.presentationLevelLabel);
-        presentationLevelValue = findViewById(R.id.presentationLevelValue);
-        presentationLevel = findViewById(R.id.presentationLevel);
         currentSettingTextView = findViewById(R.id.currentSettingTextView);
-        frequencyLabel = findViewById(R.id.frequencyLabel);
-
         loadER3ALevelsButton = findViewById(R.id.loadER3ALevels);
         clearMeasuredLevelsButton = findViewById(R.id.clearMeasuredLevels);
         saveButton = findViewById(R.id.saveButton);
         saveAsNewButton = findViewById(R.id.saveAsNewButton);
         loadOtherButton = findViewById(R.id.loadOtherButton);
         deleteCurrentButton = findViewById(R.id.deleteCurrentButton);
-        btnReturnToTitle = findViewById(R.id.returnToTitleButton); // Initialize the return button
+        btnReturnToTitle = findViewById(R.id.returnToTitleButton);
 
-        // Initialize measured level SeekBars and play buttons
-        int[] seekBarIds = {
-                R.id.slider_250Hz, R.id.slider_500Hz, R.id.slider_750Hz, R.id.slider_1000Hz,
-                R.id.slider_1500Hz, R.id.slider_2000Hz, R.id.slider_3000Hz, R.id.slider_4000Hz,
-                R.id.slider_6000Hz, R.id.slider_8000Hz
+        int[] expectedLevelIds = {
+                R.id.expected_250Hz, R.id.expected_500Hz, R.id.expected_750Hz, R.id.expected_1000Hz,
+                R.id.expected_1500Hz, R.id.expected_2000Hz, R.id.expected_3000Hz, R.id.expected_4000Hz,
+                R.id.expected_6000Hz, R.id.expected_8000Hz
+        };
+        int[] leftMeasuredLevelIds = {
+                R.id.left_measured_250Hz, R.id.left_measured_500Hz, R.id.left_measured_750Hz, R.id.left_measured_1000Hz,
+                R.id.left_measured_1500Hz, R.id.left_measured_2000Hz, R.id.left_measured_3000Hz, R.id.left_measured_4000Hz,
+                R.id.left_measured_6000Hz, R.id.left_measured_8000Hz
+        };
+        int[] rightMeasuredLevelIds = {
+                R.id.right_measured_250Hz, R.id.right_measured_500Hz, R.id.right_measured_750Hz, R.id.right_measured_1000Hz,
+                R.id.right_measured_1500Hz, R.id.right_measured_2000Hz, R.id.right_measured_3000Hz, R.id.right_measured_4000Hz,
+                R.id.right_measured_6000Hz, R.id.right_measured_8000Hz
         };
         int[] playButtonIds = {
                 R.id.playButton_250Hz, R.id.playButton_500Hz, R.id.playButton_750Hz, R.id.playButton_1000Hz,
                 R.id.playButton_1500Hz, R.id.playButton_2000Hz, R.id.playButton_3000Hz, R.id.playButton_4000Hz,
                 R.id.playButton_6000Hz, R.id.playButton_8000Hz
         };
-        int[] measuredValueIds = {
-                R.id.measuredValue_250Hz, R.id.measuredValue_500Hz, R.id.measuredValue_750Hz, R.id.measuredValue_1000Hz,
-                R.id.measuredValue_1500Hz, R.id.measuredValue_2000Hz, R.id.measuredValue_3000Hz, R.id.measuredValue_4000Hz,
-                R.id.measuredValue_6000Hz, R.id.measuredValue_8000Hz
-        };
 
-        for (int i = 0; i < measuredLevelSeekBars.length; i++) {
-            measuredLevelSeekBars[i] = findViewById(seekBarIds[i]);
+        for (int i = 0; i < frequencies.length; i++) {
+            expectedLevelEdits[i] = findViewById(expectedLevelIds[i]);
+            leftMeasuredLevelEdits[i] = findViewById(leftMeasuredLevelIds[i]);
+            rightMeasuredLevelEdits[i] = findViewById(rightMeasuredLevelIds[i]);
             playButtons[i] = findViewById(playButtonIds[i]);
-            measuredValueTextViews[i] = findViewById(measuredValueIds[i]);
-        }
 
-        // Set default presentation level to 70 dB HL
-        presentationLevel.setMax(1000); // Adjust max to 1000 to account for one decimal place
-        presentationLevel.setProgress(700); // 70.0 dB
-        presentationLevelValue.setText("70.0 dB");
-        presentationLevel.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                float displayValue = progress / 10.0f;
-                adjustTones(displayValue);
-                presentationLevelValue.setText(String.format(Locale.US, "%.1f dB", displayValue));
-                isModified = true;
-            }
-
-            @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {}
-
-            @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {}
-        });
-
-        for (int i = 0; i < measuredLevelSeekBars.length; i++) {
-            final int index = i;
-            measuredLevelSeekBars[i].setMax(1000); // Adjust max to 1000 to account for one decimal place
-            measuredLevelSeekBars[i].setProgress(700); // 70.0 dB
-            measuredLevelSeekBars[i].setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-                @Override
-                public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                    float displayValue = progress / 10.0f;
-                    measuredValueTextViews[index].setText(String.format(Locale.US, "%.1f dB", displayValue));
-                    adjustToneVolume(index, displayValue);
-                    isModified = true;
-                }
-
-                @Override
-                public void onStartTrackingTouch(SeekBar seekBar) {}
-
-                @Override
-                public void onStopTrackingTouch(SeekBar seekBar) {}
-            });
-
-            playButtons[i].setText(getString(R.string.play));
-
-            playButtons[i].setOnClickListener(v -> playTone(index));
+            int finalI = i;
+            playButtons[i].setOnClickListener(v -> handlePlayButtonClick(finalI));
         }
     }
 
+    private synchronized void handlePlayButtonClick(int index) {
+        if (currentlyPlayingIndex == index) {
+            stopTone(index);
+            playButtons[index].setImageResource(android.R.drawable.ic_media_play);
+            currentlyPlayingIndex = -1;
+        } else {
+            if (currentlyPlayingIndex != -1) {
+                stopTone(currentlyPlayingIndex);
+                playButtons[currentlyPlayingIndex].setImageResource(android.R.drawable.ic_media_play);
+            }
+            playTone(index);
+            playButtons[index].setImageResource(android.R.drawable.ic_media_pause);
+            currentlyPlayingIndex = index;
+        }
+    }
+
+    private synchronized void stopTone(int index) {
+        if (audioTracks[index] != null) {
+            audioTracks[index].stop();
+            audioTracks[index].release();
+            audioTracks[index] = null;
+        }
+        if (audioThreads[index] != null) {
+            audioThreads[index].interrupt();
+            audioThreads[index] = null;
+        }
+    }
+
+    private void stopAllTones() {
+        for (int i = 0; i < frequencies.length; i++) {
+            stopTone(i);
+        }
+        currentlyPlayingIndex = -1;
+    }
+
     private void setupClickListeners() {
-        // Set click listeners for each button
         loadER3ALevelsButton.setOnClickListener(view -> loadER3ALevels());
         clearMeasuredLevelsButton.setOnClickListener(view -> clearMeasuredLevels());
         saveButton.setOnClickListener(view -> saveSettings());
         saveAsNewButton.setOnClickListener(view -> saveAsNew());
         loadOtherButton.setOnClickListener(view -> loadOther());
         deleteCurrentButton.setOnClickListener(view -> deleteCurrent());
-
-        btnReturnToTitle.setOnClickListener(view -> finish()); // Listener to handle return action
-    }
-
-    private void updateTexts() {
-        // Update all text elements to use localized strings
-        loadER3ALevelsButton.setText(getString(R.string.load_er3a_levels));
-        clearMeasuredLevelsButton.setText(getString(R.string.clear_measured_levels));
-        saveButton.setText(getString(R.string.save));
-        saveAsNewButton.setText(getString(R.string.save_as_new));
-        loadOtherButton.setText(getString(R.string.load_other));
-        deleteCurrentButton.setText(getString(R.string.delete_current));
-
-        expectedSoundPressureLevel.setText(getString(R.string.expected_sound_pressure_level));
-        presentationLevelLabel.setText(getString(R.string.presentation_level));
-        frequencyLabel.setText(getString(R.string.frequency_Label));
-        currentSettingTextView.setText(String.format(getString(R.string.current_setting), currentSettingName)); // Initialize with the saved setting
-
-        btnReturnToTitle.setText(getString(R.string.return_to_title)); // Set the text for the return button
-    }
-
-    private void setupTonePlayers() {
-        for (int i = 0; i < tonePlayers.length; i++) {
-            tonePlayers[i] = MediaPlayer.create(this, toneResIds[i]);
-        }
-    }
-
-    private void adjustTones(float presentationLevel) {
-        for (int i = 0; i < tonePlayers.length; i++) {
-            if (tonePlayers[i].isPlaying()) {
-                float volume = presentationLevel / 100.0f; // Assuming 100 dB HL as max level
-                tonePlayers[i].setVolume(volume, volume);
-            }
-        }
-    }
-
-    private void adjustToneVolume(int index, float level) {
-        if (index < 0 || index >= tonePlayers.length) return;
-        float volume = level / 100.0f; // Assuming 100 dB HL as max level
-        tonePlayers[index].setVolume(volume, volume);
+        btnReturnToTitle.setOnClickListener(view -> finish());
     }
 
     private void loadER3ALevels() {
-        for (int i = 0; i < measuredLevelSeekBars.length; i++) {
-            measuredLevelSeekBars[i].setProgress(Math.round(er3aLevels[i] * 10));
-            measuredValueTextViews[i].setText(String.format(Locale.US, "%.1f dB", er3aLevels[i]));
+        for (int i = 0; i < frequencies.length; i++) {
+            expectedLevelEdits[i].setText(String.format(Locale.US, "%.1f", er3aLevels[i]));
+            leftMeasuredLevelEdits[i].setText(String.format(Locale.US, "%.1f", leftMeasuredER3ALevels[i]));
+            rightMeasuredLevelEdits[i].setText(String.format(Locale.US, "%.1f", rightMeasuredER3ALevels[i]));
         }
-        // Do not mark as modified
-        presentationLevel.setProgress(700); // 70.0 dB
-        presentationLevelValue.setText("70.0 dB");
     }
 
     private void clearMeasuredLevels() {
-        // Logic to clear measured levels
-        for (int i = 0; i < measuredLevelSeekBars.length; i++) {
-            measuredLevelSeekBars[i].setProgress(700); // Reset to default value
-            measuredValueTextViews[i].setText("70.0 dB");
+        for (int i = 0; i < frequencies.length; i++) {
+            leftMeasuredLevelEdits[i].setText("");
+            rightMeasuredLevelEdits[i].setText("");
         }
-        // Do not mark as modified
-        presentationLevel.setProgress(700); // 70.0 dB
-        presentationLevelValue.setText("70.0 dB");
     }
 
     private void saveSettings() {
@@ -238,26 +184,49 @@ public class CalibrationActivity extends AppCompatActivity {
             return;
         }
 
+        calculateDesiredSPLLevels(); // Calculate desired SPL levels before saving
+
         SharedPreferences prefs = getSharedPreferences(SETTINGS_PREFS, MODE_PRIVATE);
         SharedPreferences.Editor editor = prefs.edit();
 
-        // Add the current setting name to the set of settings
         Set<String> settings = prefs.getStringSet(SETTINGS_KEY, new HashSet<>());
         settings.add(currentSettingName);
         editor.putStringSet(SETTINGS_KEY, settings);
-
-        // Save the current setting name
         editor.putString("currentSettingName", currentSettingName);
 
-        editor.putInt("presentationLevel_" + currentSettingName, presentationLevel.getProgress());
-        for (int i = 0; i < measuredLevelSeekBars.length; i++) {
-            editor.putFloat("measuredLevel_" + currentSettingName + "_" + i, measuredLevelSeekBars[i].getProgress() / 10.0f);
+        for (int i = 0; i < frequencies.length; i++) {
+            editor.putFloat("expectedLevel_" + currentSettingName + "_" + i, parseFloatOrDefault(expectedLevelEdits[i].getText().toString(), 0));
+            editor.putFloat("leftMeasuredLevel_" + currentSettingName + "_" + i, parseFloatOrDefault(leftMeasuredLevelEdits[i].getText().toString(), 0));
+            editor.putFloat("rightMeasuredLevel_" + currentSettingName + "_" + i, parseFloatOrDefault(rightMeasuredLevelEdits[i].getText().toString(), 0));
+            editor.putFloat("desiredSPLLevelLeft_" + currentSettingName + "_" + i, desiredSPLLevelsLeft[i]);
+            editor.putFloat("desiredSPLLevelRight_" + currentSettingName + "_" + i, desiredSPLLevelsRight[i]);
         }
         editor.apply();
         Toast.makeText(this, R.string.setting_saved, Toast.LENGTH_SHORT).show();
 
-        // Update the current setting text view
         currentSettingTextView.setText(String.format(getString(R.string.current_setting), currentSettingName));
+    }
+
+    private void calculateDesiredSPLLevels() {
+        for (int i = 0; i < frequencies.length; i++) {
+            float expectedLevel = parseFloatOrDefault(expectedLevelEdits[i].getText().toString(), 0);
+            float leftMeasuredLevel = parseFloatOrDefault(leftMeasuredLevelEdits[i].getText().toString(), 0);
+            float rightMeasuredLevel = parseFloatOrDefault(rightMeasuredLevelEdits[i].getText().toString(), 0);
+
+            desiredSPLLevelsLeft[i] = expectedLevel + (expectedLevel - leftMeasuredLevel);
+            desiredSPLLevelsRight[i] = expectedLevel + (expectedLevel - rightMeasuredLevel);
+
+            Log.d(TAG, "Calculated desiredSPLLevelLeft[" + i + "] = " + desiredSPLLevelsLeft[i]);
+            Log.d(TAG, "Calculated desiredSPLLevelRight[" + i + "] = " + desiredSPLLevelsRight[i]);
+        }
+    }
+
+    private float parseFloatOrDefault(String value, float defaultValue) {
+        try {
+            return Float.parseFloat(value);
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
     }
 
     private void saveAsNew() {
@@ -266,11 +235,10 @@ public class CalibrationActivity extends AppCompatActivity {
         builder.setMessage(R.string.enter_setting_name);
 
         final EditText input = new EditText(this);
-        input.setInputType(InputType.TYPE_CLASS_TEXT);  // Set input type to text
-        input.setSingleLine(true);  // Ensure single line input
+        input.setInputType(InputType.TYPE_CLASS_TEXT);
+        input.setSingleLine(true);
         builder.setView(input);
 
-        // Set the positive button click listener
         builder.setPositiveButton(R.string.confirm, (dialogInterface, which) -> {
             String settingName = input.getText().toString().trim();
             if (settingName.isEmpty()) {
@@ -282,10 +250,7 @@ public class CalibrationActivity extends AppCompatActivity {
             saveSettings();
         });
 
-        // Set the negative button click listener
         builder.setNegativeButton(R.string.cancel, (dialogInterface, which) -> dialogInterface.dismiss());
-
-        // Show the dialog
         builder.show();
     }
 
@@ -314,14 +279,15 @@ public class CalibrationActivity extends AppCompatActivity {
 
     private void loadSetting(String settingName) {
         SharedPreferences prefs = getSharedPreferences(SETTINGS_PREFS, MODE_PRIVATE);
-        presentationLevel.setProgress(prefs.getInt("presentationLevel_" + settingName, 700));
-        presentationLevelValue.setText(String.format(Locale.US, "%.1f dB", presentationLevel.getProgress() / 10.0f));
-        for (int i = 0; i < measuredLevelSeekBars.length; i++) {
-            float level = prefs.getFloat("measuredLevel_" + settingName + "_" + i, 70.0f);
-            measuredLevelSeekBars[i].setProgress(Math.round(level * 10));
-            measuredValueTextViews[i].setText(String.format(Locale.US, "%.1f dB", level));
+        for (int i = 0; i < frequencies.length; i++) {
+            expectedLevelEdits[i].setText(String.format(Locale.US, "%.1f", prefs.getFloat("expectedLevel_" + settingName + "_" + i, er3aLevels[i])));
+            leftMeasuredLevelEdits[i].setText(String.format(Locale.US, "%.1f", prefs.getFloat("leftMeasuredLevel_" + settingName + "_" + i, 0.0f)));
+            rightMeasuredLevelEdits[i].setText(String.format(Locale.US, "%.1f", prefs.getFloat("rightMeasuredLevel_" + settingName + "_" + i, 0.0f)));
+            desiredSPLLevelsLeft[i] = prefs.getFloat("desiredSPLLevelLeft_" + settingName + "_" + i, 0.0f);
+            desiredSPLLevelsRight[i] = prefs.getFloat("desiredSPLLevelRight_" + settingName + "_" + i, 0.0f);
+            Log.d(TAG, "Loaded desiredSPLLevelLeft[" + i + "] = " + desiredSPLLevelsLeft[i]);
+            Log.d(TAG, "Loaded desiredSPLLevelRight[" + i + "] = " + desiredSPLLevelsRight[i]);
         }
-        // Do not mark as modified
     }
 
     private void deleteCurrent() {
@@ -333,9 +299,11 @@ public class CalibrationActivity extends AppCompatActivity {
             return;
         }
 
-        editor.remove("presentationLevel_" + currentSettingName);
-        for (int i = 0; i < measuredLevelSeekBars.length; i++) {
-            editor.remove("measuredLevel_" + currentSettingName + "_" + i);
+        for (int i = 0; i < frequencies.length; i++) {
+            editor.remove("expectedLevel_" + currentSettingName + "_" + i);
+            editor.remove("leftMeasuredLevel_" + currentSettingName + "_" + i);
+            editor.remove("rightMeasuredLevel_" + currentSettingName + "_" + i);
+            editor.remove("desiredSPLLevel_" + currentSettingName + "_" + i);
         }
         Set<String> settings = prefs.getStringSet(SETTINGS_KEY, new HashSet<>());
         settings.remove(currentSettingName);
@@ -354,45 +322,150 @@ public class CalibrationActivity extends AppCompatActivity {
         Toast.makeText(this, R.string.setting_deleted, Toast.LENGTH_SHORT).show();
     }
 
-    private void playTone(int index) {
-        if (index < 0 || index >= tonePlayers.length) return;
-
-        if (tonePlayers[index].isPlaying()) {
-            tonePlayers[index].stop();
-            try {
-                tonePlayers[index].prepare();
-                tonePlayers[index].seekTo(0);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
-        tonePlayers[index].start();
+    private double calculateAmplitude(double desiredDbSpl, double referenceDbSpl) {
+        double amplitude = Math.pow(10, (desiredDbSpl - referenceDbSpl) / 20);
+        return Math.min(Math.max(amplitude, 0.0), 1.0); // Ensure the amplitude is between 0 and 1
     }
 
-    private void saveCurrentSetting() {
-        if (currentSettingName.isEmpty()) {
-            return;
+    private void addTextChangeListeners() {
+        for (int i = 0; i < frequencies.length; i++) {
+            int finalI = i;
+            expectedLevelEdits[i].addTextChangedListener(new TextWatcher() {
+                @Override
+                public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+                @Override
+                public void onTextChanged(CharSequence s, int start, int before, int count) {
+                    if (currentlyPlayingIndex == finalI) {
+                        updateVolume(finalI);
+                    }
+                }
+
+                @Override
+                public void afterTextChanged(Editable s) {}
+            });
+
+            leftMeasuredLevelEdits[i].addTextChangedListener(new TextWatcher() {
+                @Override
+                public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+                @Override
+                public void onTextChanged(CharSequence s, int start, int before, int count) {
+                    if (currentlyPlayingIndex == finalI) {
+                        updateVolume(finalI);
+                    }
+                }
+
+                @Override
+                public void afterTextChanged(Editable s) {}
+            });
+
+            rightMeasuredLevelEdits[i].addTextChangedListener(new TextWatcher() {
+                @Override
+                public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+                @Override
+                public void onTextChanged(CharSequence s, int start, int before, int count) {
+                    if (currentlyPlayingIndex == finalI) {
+                        updateVolume(finalI);
+                    }
+                }
+
+                @Override
+                public void afterTextChanged(Editable s) {}
+            });
         }
-        SharedPreferences prefs = getSharedPreferences(SETTINGS_PREFS, MODE_PRIVATE);
-        SharedPreferences.Editor editor = prefs.edit();
+    }
 
-        editor.putString("currentSettingName", currentSettingName);
-        editor.putInt("presentationLevel_" + currentSettingName, presentationLevel.getProgress());
+    private void updateVolume(int index) {
+        try {
+            double expectedLevel = Double.parseDouble(expectedLevelEdits[index].getText().toString());
+            double leftMeasuredLevel = Double.parseDouble(leftMeasuredLevelEdits[index].getText().toString());
+            double rightMeasuredLevel = Double.parseDouble(rightMeasuredLevelEdits[index].getText().toString());
 
-        for (int i = 0; i < measuredLevelSeekBars.length; i++) {
-            editor.putFloat("measuredLevel_" + currentSettingName + "_" + i, measuredLevelSeekBars[i].getProgress() / 10.0f);
+            double leftCorrectionFactor = expectedLevel - leftMeasuredLevel;
+            double rightCorrectionFactor = expectedLevel - rightMeasuredLevel;
+
+            double leftDesiredDbSpl = expectedLevel + leftCorrectionFactor;
+            double rightDesiredDbSpl = expectedLevel + rightCorrectionFactor;
+
+            // Save the desired SPL levels for each ear separately
+            desiredSPLLevelsLeft[index] = (float) leftDesiredDbSpl;
+            desiredSPLLevelsRight[index] = (float) rightDesiredDbSpl;
+
+            Log.d(TAG, "updateVolume: index = " + index + ", expectedLevel = " + expectedLevel +
+                    ", leftMeasuredLevel = " + leftMeasuredLevel + ", rightMeasuredLevel = " + rightMeasuredLevel);
+            Log.d(TAG, "updateVolume: leftDesiredDbSpl = " + leftDesiredDbSpl + ", rightDesiredDbSpl = " + rightDesiredDbSpl);
+
+            double leftAmplitude = calculateAmplitude(leftDesiredDbSpl, 100);
+            double rightAmplitude = calculateAmplitude(rightDesiredDbSpl, 100);
+
+            if (audioTracks[index] != null) {
+                audioTracks[index].setStereoVolume((float) leftAmplitude, (float) rightAmplitude);
+            }
+        } catch (NumberFormatException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void playTone(int index) {
+        if (index < 0 || index >= frequencies.length) return;
+
+        int sampleRate = 44100;
+        int numSamples = sampleRate;
+        double[] sample = new double[numSamples];
+        byte[] generatedSnd = new byte[2 * numSamples];
+
+        double freqOfTone = frequencies[index];
+
+        for (int i = 0; i < numSamples; ++i) {
+            sample[i] = Math.sin(2 * Math.PI * i / (sampleRate / freqOfTone));
         }
 
-        editor.apply();
+        int idx = 0;
+        for (final double dVal : sample) {
+            final short val = (short) ((dVal * 32767));
+            generatedSnd[idx++] = (byte) (val & 0x00ff);
+            generatedSnd[idx++] = (byte) ((val & 0xff00) >>> 8);
+        }
+
+        stopTone(index);
+
+        audioTracks[index] = new AudioTrack(
+                new AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                        .build(),
+                new AudioFormat.Builder()
+                        .setSampleRate(sampleRate)
+                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                        .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
+                        .build(),
+                numSamples * 2,
+                AudioTrack.MODE_STREAM,
+                AudioManager.AUDIO_SESSION_ID_GENERATE
+        );
+
+        audioTracks[index].play();
+
+        audioThreads[index] = new Thread(() -> {
+            try {
+                while (!Thread.currentThread().isInterrupted() && audioTracks[index] != null) {
+                    audioTracks[index].write(generatedSnd, 0, generatedSnd.length);
+                }
+            } catch (IllegalStateException e) {
+                Log.e(TAG, "AudioTrack write failed", e);
+            }
+        });
+        audioThreads[index].start();
+
+        updateVolume(index);
     }
 
     private void loadCurrentSetting() {
         SharedPreferences prefs = getSharedPreferences(SETTINGS_PREFS, MODE_PRIVATE);
         currentSettingName = prefs.getString("currentSettingName", "");
-
-        if (currentSettingName.isEmpty()) {
-            currentSettingTextView.setText(String.format(getString(R.string.current_setting), "None"));
-        } else {
+        if (!currentSettingName.isEmpty()) {
             currentSettingTextView.setText(String.format(getString(R.string.current_setting), currentSettingName));
             loadSetting(currentSettingName);
         }

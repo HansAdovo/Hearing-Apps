@@ -11,7 +11,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import java.util.HashSet;
 import java.util.Set;
 
-public class TestInstructionActivity extends AppCompatActivity {
+public class TestThresholdInstructionActivity extends AppCompatActivity {
 
     private Button btnStartTest;
     private TextView txtInstructions;
@@ -20,7 +20,7 @@ public class TestInstructionActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_test_instruction);
+        setContentView(R.layout.activity_test__threshold_instruction);
 
         btnStartTest = findViewById(R.id.btnStartTest);
         txtInstructions = findViewById(R.id.txtInstructions);
@@ -30,7 +30,7 @@ public class TestInstructionActivity extends AppCompatActivity {
         txtInstructions.setText(instructions);
 
         btnStartTest.setOnClickListener(view -> {
-            Intent intent = new Intent(TestInstructionActivity.this, TestActualActivity.class);
+            Intent intent = new Intent(TestThresholdInstructionActivity.this, TestThresholdActivity.class);
 
             SharedPreferences prefs = getSharedPreferences("TestActivityPrefs", MODE_PRIVATE);
             Set<String> frequencySet = prefs.getStringSet("TestSequence", new HashSet<>());
@@ -52,7 +52,7 @@ public class TestInstructionActivity extends AppCompatActivity {
         });
 
         btnReturnToTitle.setOnClickListener(view -> {
-            Intent intent = new Intent(TestInstructionActivity.this, MainActivity.class);
+            Intent intent = new Intent(TestThresholdInstructionActivity.this, MainActivity.class);
             startActivity(intent);
         });
     }

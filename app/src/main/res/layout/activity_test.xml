@@ -136,7 +136,7 @@
             android:text="Delete Current Protocol" />
 
         <Button
-            android:id="@+id/adultTestButton"
+            android:id="@+id/ThresholdTestButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
@@ -144,7 +144,7 @@
             android:backgroundTint="#2196F3" />
 
         <Button
-            android:id="@+id/pediatricTestButton"
+            android:id="@+id/MCLTestButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"

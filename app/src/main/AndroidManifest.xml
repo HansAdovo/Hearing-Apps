@@ -38,12 +38,20 @@
         <activity android:name=".ViewResultsActivity"
             android:exported="true" />
 
-        <!-- Test Instruction Activity -->
-        <activity android:name=".TestInstructionActivity"
+        <!-- Test Threshold Instruction Activity -->
+        <activity android:name=".TestThresholdInstructionActivity"
             android:exported="true" />
 
-        <!-- Test Actual Activity -->
-        <activity android:name=".TestActualActivity"
+        <!-- Test Threshold Activity -->
+        <activity android:name=".TestThresholdActivity"
+            android:exported="true" />
+
+        <!-- Test MCL Instruction Activity -->
+        <activity android:name=".TestMCLInstructionActivity"
+            android:exported="true" />
+
+        <!-- Test MCL Activity -->
+        <activity android:name=".TestMCLActivity"
             android:exported="true" />
 
     </application>
