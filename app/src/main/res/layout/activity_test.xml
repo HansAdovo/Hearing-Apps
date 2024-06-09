@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp"
+    android:background="#FFFFFF"
+    tools:context=".TestActivity">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center_horizontal">
+
+        <!-- Header with "Return to Title" button -->
+        <Button
+            android:id="@+id/returnToTitleButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Return to Title"
+            android:background="@null"
+            android:layout_gravity="start" />
+
+        <TextView
+            android:id="@+id/txtEarOrder"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Ear Order: None"
+            android:textSize="18sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center">
+
+            <Button
+                android:id="@+id/button2"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_margin="8dp"
+                android:text="L. Ear Only"
+                android:layout_weight="1"/>
+
+            <Button
+                android:id="@+id/button3"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_margin="8dp"
+                android:text="R. Ear Only"
+                android:layout_weight="1"/>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center">
+
+            <Button
+                android:id="@+id/button4"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_margin="8dp"
+                android:text="L. Ear -> R. Ear"
+                android:layout_weight="1"/>
+
+            <Button
+                android:id="@+id/button5"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_margin="8dp"
+                android:text="R. Ear -> L. Ear"
+                android:layout_weight="1"/>
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/txtTestSequenceLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Test Sequence:"
+            android:textSize="18sp" />
+
+        <TextView
+            android:id="@+id/txtTestSequence"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="None"
+            android:textSize="18sp" />
+
+        <Button
+            android:id="@+id/addFrequencyButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Add Frequency" />
+
+        <Button
+            android:id="@+id/removeLastbutton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Remove Last" />
+
+        <Button
+            android:id="@+id/clearAllbutton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Clear All" />
+
+        <Button
+            android:id="@+id/saveProtocolbutton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Save Protocol" />
+
+        <Button
+            android:id="@+id/loadProtocolbutton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Load Protocol" />
+
+        <Button
+            android:id="@+id/deletecurrentProtocolButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Delete Current Protocol" />
+
+        <Button
+            android:id="@+id/ThresholdTestButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Adult Test"
+            android:backgroundTint="#2196F3" />
+
+        <Button
+            android:id="@+id/MCLTestButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Pediatric Test"
+            android:backgroundTint="#FF5722" />
+
+    </LinearLayout>
+</ScrollView>
