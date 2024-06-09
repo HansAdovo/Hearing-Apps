@@ -8,8 +8,8 @@ import android.widget.Button;
 import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.util.ArrayList;
+import com.google.gson.Gson;
 
 public class TestThresholdInstructionActivity extends AppCompatActivity {
 
@@ -33,11 +33,14 @@ public class TestThresholdInstructionActivity extends AppCompatActivity {
             Intent intent = new Intent(TestThresholdInstructionActivity.this, TestThresholdActivity.class);
 
             SharedPreferences prefs = getSharedPreferences("TestActivityPrefs", MODE_PRIVATE);
-            Set<String> frequencySet = prefs.getStringSet("TestSequence", new HashSet<>());
-            String[] frequencies = frequencySet.toArray(new String[0]);
+            String json = prefs.getString("TestSequence", "");
+            Gson gson = new Gson();
+            ArrayList<String> frequencies = gson.fromJson(json, ArrayList.class);
+
+            Log.d("TestInstructionActivity", "Frequencies set before test: " + frequencies);
             String earOrder = prefs.getString("EarOrder", "leftToRight");
 
-            intent.putExtra("frequencies", frequencies);
+            intent.putExtra("frequencies", frequencies.toArray(new String[0]));
             intent.putExtra("earOrder", earOrder);
 
             Log.d("TestInstructionActivity", "EarOrder passed: " + earOrder);

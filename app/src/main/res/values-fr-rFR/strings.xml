@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="test">Tester</string>
-    <string name="practice">Pratiquer</string>
     <string name="calibration">Calibrage</string>
     <string name="view_results">Voir les résultats</string>
     <string name="choose_language">Choisir la langue</string>
@@ -14,8 +13,8 @@
     <string name="ear_order_label">Ordre G./D. des Oreilles</string>
     <string name="lear_only">Oreille G. Seulement</string>
     <string name="rear_only">Oreille D. Seulement</string>
-    <string name="lear_to_rear">Oreille G. -> Oreille D.</string>
-    <string name="rear_to_lear">Oreille D. -> Oreille G.</string>
+    <string name="lear_to_rear">L. Oreille -> R. Oreille</string>
+    <string name="rear_to_lear">R. Oreille -> L. Oreille</string>
     <string name="return_to_title">Retour au Titre</string>
     <string name="remove_last">Supprimer Dernier</string>
     <string name="load_protocol">Charger Protocole</string>
@@ -24,8 +23,6 @@
     <string name="Threshold_test">Test de seuil</string>
     <string name="delete_current_protocol">Supprimer Protocole Actuel</string>
     <string name="clear_all">Tout Effacer</string>
-    <string name="pediatricPracticeButton">Pratique Pédiatrique</string>
-    <string name="adultPracticeButton">Pratique Adulte</string>
     <string name="load_er3a_levels">Load ER3A Niveaux</string>
     <string name="clear_measured_levels">Effacer Niveaux Mesurés</string>
     <string name="save">Sauvegarder</string>
@@ -63,8 +60,6 @@
     <string name="none">Aucun</string>
     <string name="protocol_saved">Protocole %1$s enregistré.</string>
     <string name="no_calibration_setting_selected">Aucun réglage d’étalonnage sélectionné !</string>
-    <string name="pediatric_practice_test">Test de pratique pédiatrique</string>
-    <string name="adult_practice_test">Test de pratique pour adultes</string>
     <string name="enter_patient_info">Veuillez saisir le groupe de patients et le nom :</string>
     <string name="patient_group">Groupe</string>
     <string name="patient_name">Nom</string>
@@ -84,4 +79,15 @@
     <string name="comfortable_but_slightly_soft">Confortable mais légèrement doux</string>
     <string name="most_comfortable">Le plus confortable</string>
     <string name="too_loud">Trop fort</string>
+    <string name="confirm_delete_all_profiles">Êtes-vous sûr de vouloir supprimer tous les profils des patients?</string>
+    <string name="axis_volume_level_db">Niveau de volume (DB)</string>
+    <string name="axis_test_instance">Instance de test</string>
+    <string name="left_ear_graph_title">Oreille gauche : %1$s (%2$s)</string>
+    <string name="right_ear_graph_title">Oreille droite : %1$s (%2$s)</string>
+    <string name="left_ear">Oreille gauche</string>
+    <string name="right_ear">Oreille droite</string>
+    <string name="test_type_threshold">Seuil</string>
+    <string name="no_test_results">Aucun résultat de test disponible</string>
+    <string name="ear_order_test_sequence_required">Test de séquence requise</string>
+    <string name="current_setting_no_setting">Paramètre actuel:</string>
 </resources>

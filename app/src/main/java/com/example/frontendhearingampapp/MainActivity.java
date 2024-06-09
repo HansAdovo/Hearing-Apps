@@ -20,7 +20,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String[] LANGUAGES = {"English", "Spanish", "French"};
     private static final String[] LOCALES = {"en", "es-rES", "fr-rFR"};
     private TextView switchLanguageButton, appTitle;
-    private Button testButton, practiceButton, calibrationButton, viewResultsButton;
+    private Button testButton, calibrationButton, viewResultsButton;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -31,7 +31,6 @@ public class MainActivity extends AppCompatActivity {
         switchLanguageButton = findViewById(R.id.switchLanguageButton);
         appTitle = findViewById(R.id.appTitle);
         testButton = findViewById(R.id.testButton);
-        practiceButton = findViewById(R.id.practiceButton);
         calibrationButton = findViewById(R.id.calibrationButton);
         viewResultsButton = findViewById(R.id.viewResultsButton);
 
@@ -43,15 +42,14 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(this, getString(R.string.no_calibration_setting_selected), Toast.LENGTH_SHORT).show();
             }
         });
-        practiceButton.setOnClickListener(view -> {
-            if (isCalibrationSettingSelected()) {
-                startActivity(new Intent(this, PracticeActivity.class));
+        calibrationButton.setOnClickListener(view -> startActivity(new Intent(this, CalibrationActivity.class)));
+        viewResultsButton.setOnClickListener(view -> {
+            if (hasTestResults()) {
+                startActivity(new Intent(this, ViewResultsActivity.class));
             } else {
-                Toast.makeText(this, getString(R.string.no_calibration_setting_selected), Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, getString(R.string.no_test_results), Toast.LENGTH_SHORT).show();
             }
         });
-        calibrationButton.setOnClickListener(view -> startActivity(new Intent(this, CalibrationActivity.class)));
-        viewResultsButton.setOnClickListener(view -> startActivity(new Intent(this, ViewResultsActivity.class)));
 
         updateTexts();
     }
@@ -60,6 +58,11 @@ public class MainActivity extends AppCompatActivity {
         SharedPreferences prefs = getSharedPreferences("CalibrationSettings", MODE_PRIVATE);
         String currentSettingName = prefs.getString("currentSettingName", "");
         return !currentSettingName.isEmpty();
+    }
+
+    private boolean hasTestResults() {
+        SharedPreferences prefs = getSharedPreferences("TestResults", MODE_PRIVATE);
+        return !prefs.getAll().isEmpty();
     }
 
     private void showChangeLanguageDialog() {
@@ -113,7 +116,6 @@ public class MainActivity extends AppCompatActivity {
         if (switchLanguageButton != null) switchLanguageButton.setText(R.string.switch_language);
         if (appTitle != null) appTitle.setText(R.string.app_title);
         if (testButton != null) testButton.setText(R.string.test);
-        if (practiceButton != null) practiceButton.setText(R.string.practice);
         if (calibrationButton != null) calibrationButton.setText(R.string.calibration);
         if (viewResultsButton != null) viewResultsButton.setText(R.string.view_results);
     }

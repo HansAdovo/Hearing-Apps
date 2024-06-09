@@ -62,6 +62,7 @@ public class CalibrationActivity extends AppCompatActivity {
 
         loadCurrentSetting();
         addTextChangeListeners();
+        updatePlayButtonsState();
     }
 
     @Override
@@ -74,6 +75,7 @@ public class CalibrationActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         loadCurrentSetting();
+        updatePlayButtonsState();
     }
 
     private void initViews() {
@@ -119,6 +121,11 @@ public class CalibrationActivity extends AppCompatActivity {
     }
 
     private synchronized void handlePlayButtonClick(int index) {
+        if (currentSettingName.isEmpty()) {
+            Toast.makeText(this, R.string.no_calibration_setting_selected, Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         if (currentlyPlayingIndex == index) {
             stopTone(index);
             playButtons[index].setImageResource(android.R.drawable.ic_media_play);
@@ -273,6 +280,7 @@ public class CalibrationActivity extends AppCompatActivity {
             editor.apply();
             currentSettingTextView.setText(String.format(getString(R.string.current_setting), currentSettingName));
             loadSetting(currentSettingName);
+            updatePlayButtonsState();
         });
         builder.show();
     }
@@ -303,23 +311,22 @@ public class CalibrationActivity extends AppCompatActivity {
             editor.remove("expectedLevel_" + currentSettingName + "_" + i);
             editor.remove("leftMeasuredLevel_" + currentSettingName + "_" + i);
             editor.remove("rightMeasuredLevel_" + currentSettingName + "_" + i);
-            editor.remove("desiredSPLLevel_" + currentSettingName + "_" + i);
+            editor.remove("desiredSPLLevelLeft_" + currentSettingName + "_" + i);
+            editor.remove("desiredSPLLevelRight_" + currentSettingName + "_" + i);
         }
         Set<String> settings = prefs.getStringSet(SETTINGS_KEY, new HashSet<>());
         settings.remove(currentSettingName);
         editor.putStringSet(SETTINGS_KEY, settings);
         editor.apply();
 
-        if (settings.isEmpty()) {
-            currentSettingName = "";
-        } else {
-            currentSettingName = "";
-        }
+        currentSettingName = "";
         editor.putString("currentSettingName", currentSettingName);
         editor.apply();
 
-        currentSettingTextView.setText(String.format(getString(R.string.current_setting), currentSettingName));
+        currentSettingTextView.setText(getString(R.string.current_setting_no_setting));
         Toast.makeText(this, R.string.setting_deleted, Toast.LENGTH_SHORT).show();
+
+        updatePlayButtonsState();
     }
 
     private double calculateAmplitude(double desiredDbSpl, double referenceDbSpl) {
@@ -468,6 +475,15 @@ public class CalibrationActivity extends AppCompatActivity {
         if (!currentSettingName.isEmpty()) {
             currentSettingTextView.setText(String.format(getString(R.string.current_setting), currentSettingName));
             loadSetting(currentSettingName);
+        } else {
+            currentSettingTextView.setText(getString(R.string.current_setting_no_setting)); // Update this line
+        }
+    }
+
+    private void updatePlayButtonsState() {
+        boolean isEnabled = !currentSettingName.isEmpty();
+        for (ImageButton playButton : playButtons) {
+            playButton.setEnabled(isEnabled);
         }
     }
 }

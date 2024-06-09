@@ -17,10 +17,11 @@ import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
 import android.widget.Toast;
 
-import java.io.FileOutputStream;
-import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class TestMCLActivity extends AppCompatActivity {
 
@@ -53,7 +54,10 @@ public class TestMCLActivity extends AppCompatActivity {
     private float[] desiredSPLLevelsRight = new float[10];
     private String currentSettingName;
 
-    private List<Integer> mclLevels = new ArrayList<>();
+    private Map<String, Integer> mclLevelsLeft = new HashMap<>();
+    private Map<String, Integer> mclLevelsRight = new HashMap<>();
+    private Map<String, Integer> mostComfortableCounts = new HashMap<>();
+    private HashMap<String, List<Integer>> testCounts = new HashMap<>();
     private AudioTrack audioTrack;
 
     private static final int MIN_VOLUME_DB_HL = 0;
@@ -99,6 +103,7 @@ public class TestMCLActivity extends AppCompatActivity {
         frequencies = intent.getStringArrayExtra("frequencies");
         earOrder = intent.getStringExtra("earOrder");
 
+        Log.d("TestThresholdActivity", "Received frequencies: " + Arrays.toString(frequencies));
         Log.d("TestMCLActivity", "EarOrder received: " + earOrder);
 
         if (frequencies == null || frequencies.length == 0) {
@@ -116,19 +121,20 @@ public class TestMCLActivity extends AppCompatActivity {
     }
 
     private void applyEarOrderSettings() {
-        earOrder = earOrder.trim().replaceAll("\\s+", " "); // Remove any leading or trailing whitespace and standardize spaces
+        String leftEarOnly = getString(R.string.lear_only);
+        String rightEarOnly = getString(R.string.rear_only);
+        String leftEarToRightEar = getString(R.string.lear_to_rear);
+        String rightEarToLeftEar = getString(R.string.rear_to_lear);
 
-        // Normalize the ear order string for consistent comparison
-        earOrder = earOrder.replaceAll("\\s+", " ").replace("L.Ear", "L. Ear").replace("R.Ear", "R. Ear");
+        earOrder = earOrder.trim().replaceAll("\\s+", " "); // Normalize whitespace
 
-        // Use normalized ear order for comparisons
-        if (earOrder.equalsIgnoreCase("L. Ear Only") || earOrder.contains("L. Ear Only")) {
+        if (earOrder.equalsIgnoreCase(leftEarOnly)) {
             currentEar = "left";
-        } else if (earOrder.equalsIgnoreCase("R. Ear Only") || earOrder.contains("R. Ear Only")) {
+        } else if (earOrder.equalsIgnoreCase(rightEarOnly)) {
             currentEar = "right";
-        } else if (earOrder.equalsIgnoreCase("L. Ear -> R. Ear") || earOrder.contains("L. Ear -> R. Ear")) {
+        } else if (earOrder.equalsIgnoreCase(leftEarToRightEar)) {
             currentEar = "left";
-        } else if (earOrder.equalsIgnoreCase("R. Ear -> L. Ear") || earOrder.contains("R. Ear -> L. Ear")) {
+        } else if (earOrder.equalsIgnoreCase(rightEarToLeftEar)) {
             currentEar = "right";
         } else {
             Log.e("TestMCLActivity", "Unknown ear order: " + earOrder);
@@ -147,6 +153,7 @@ public class TestMCLActivity extends AppCompatActivity {
     }
 
     private void startTestSequence() {
+        Log.d("TestMCLActivity", "Starting test sequence with frequencies: " + Arrays.toString(frequencies));
         runTestSequence(); // Start the test sequence immediately
     }
 
@@ -250,6 +257,14 @@ public class TestMCLActivity extends AppCompatActivity {
     private void handleUserResponse(String response) {
         Log.d("TestMCLActivity", "User response: " + response + ", current dB HL: " + currentVolumeLevel);
 
+        // Log the current volume level
+        String frequencyKey = frequencies[currentFrequencyIndex] + " " + currentEar;
+        if (!testCounts.containsKey(frequencyKey)) {
+            testCounts.put(frequencyKey, new ArrayList<>());
+        }
+        testCounts.get(frequencyKey).add(currentVolumeLevel);
+        Log.d("TestMCLActivity", "Test counts for " + frequencyKey + ": " + testCounts.get(frequencyKey));
+
         switch (response) {
             case "Too Soft":
                 currentVolumeLevel += 5;
@@ -258,8 +273,14 @@ public class TestMCLActivity extends AppCompatActivity {
                 currentVolumeLevel += 2.5;
                 break;
             case "Most Comfortable":
-                mclLevels.add(currentVolumeLevel);
+                if (currentEar.equals("left")) {
+                    mclLevelsLeft.put(frequencies[currentFrequencyIndex], currentVolumeLevel);
+                } else {
+                    mclLevelsRight.put(frequencies[currentFrequencyIndex], currentVolumeLevel);
+                }
+                increaseComfortableCount(frequencies[currentFrequencyIndex]);
                 if (checkConsistency()) {
+                    Log.d("TestMCLActivity", "MCL level determined for frequency: " + frequencies[currentFrequencyIndex] + ", Ear: " + currentEar + ", Level: " + currentVolumeLevel);
                     handleEarSwitchOrEnd();
                     return;
                 }
@@ -271,12 +292,22 @@ public class TestMCLActivity extends AppCompatActivity {
 
         if (currentVolumeLevel < MIN_VOLUME_DB_HL) {
             currentVolumeLevel = MIN_VOLUME_DB_HL;
-            mclLevels.add(currentVolumeLevel);
+            if (currentEar.equals("left")) {
+                mclLevelsLeft.put(frequencies[currentFrequencyIndex], currentVolumeLevel);
+            } else {
+                mclLevelsRight.put(frequencies[currentFrequencyIndex], currentVolumeLevel);
+            }
+            Log.d("TestMCLActivity", "MCL level determined for frequency: " + frequencies[currentFrequencyIndex] + ", Ear: " + currentEar + ", Level: " + currentVolumeLevel);
             handleEarSwitchOrEnd();
             return;
         } else if (currentVolumeLevel > MAX_VOLUME_DB_HL) {
             currentVolumeLevel = MAX_VOLUME_DB_HL;
-            mclLevels.add(currentVolumeLevel);
+            if (currentEar.equals("left")) {
+                mclLevelsLeft.put(frequencies[currentFrequencyIndex], currentVolumeLevel);
+            } else {
+                mclLevelsRight.put(frequencies[currentFrequencyIndex], currentVolumeLevel);
+            }
+            Log.d("TestMCLActivity", "MCL level determined for frequency: " + frequencies[currentFrequencyIndex] + ", Ear: " + currentEar + ", Level: " + currentVolumeLevel);
             handleEarSwitchOrEnd();
             return;
         }
@@ -284,11 +315,29 @@ public class TestMCLActivity extends AppCompatActivity {
         runTestSequence(); // Continue to the next test immediately
     }
 
+    private boolean checkConsistency() {
+        String currentFrequency = frequencies[currentFrequencyIndex] + " " + currentEar;
+        int comfortableCount = mostComfortableCounts.containsKey(currentFrequency) ? mostComfortableCounts.get(currentFrequency) : 0;
+
+        if (comfortableCount >= 3) {
+            Log.d("TestMCLActivity", "MCL level determined for frequency: " + frequencies[currentFrequencyIndex] + ", Ear: " + currentEar + ", Level: " + currentVolumeLevel);
+            return true;
+        }
+
+        return false;
+    }
+
+    private void increaseComfortableCount(String frequency) {
+        String key = frequency + " " + currentEar;
+        int count = mostComfortableCounts.containsKey(key) ? mostComfortableCounts.get(key) : 0;
+        mostComfortableCounts.put(key, count + 1);
+    }
+
     private void handleEarSwitchOrEnd() {
         currentFrequencyIndex++;
         if (currentFrequencyIndex >= frequencies.length) {
-            if ((currentEar.equals("left") && earOrder.equalsIgnoreCase("L. Ear -> R. Ear")) ||
-                    (currentEar.equals("right") && earOrder.equalsIgnoreCase("R. Ear -> L. Ear"))) {
+            if ((currentEar.equals("left") && earOrder.equalsIgnoreCase(getString(R.string.lear_to_rear))) ||
+                    (currentEar.equals("right") && earOrder.equalsIgnoreCase(getString(R.string.rear_to_lear)))) {
                 currentEar = currentEar.equals("left") ? "right" : "left";
                 currentFrequencyIndex = 0;
                 currentVolumeLevel = 50; // Reset volume level for the other ear
@@ -307,21 +356,6 @@ public class TestMCLActivity extends AppCompatActivity {
         runTestSequence();
     }
 
-    private boolean checkConsistency() {
-        if (mclLevels.size() < 3) return false;
-
-        int lastLevel = mclLevels.get(mclLevels.size() - 1);
-        int count = 0;
-        for (int i = mclLevels.size() - 2; i >= 0; i--) {
-            if (mclLevels.get(i) == lastLevel) {
-                count++;
-            } else {
-                break;
-            }
-        }
-        return count >= 2; // Check if the last three levels are the same
-    }
-
     private void repeatCurrentTest() {
         if (isTestInProgress) return; // Prevent repeat if a test is already in progress
         int frequency = Integer.parseInt(frequencies[currentFrequencyIndex].replace(" Hz", ""));
@@ -336,38 +370,86 @@ public class TestMCLActivity extends AppCompatActivity {
     }
 
     private void showResults() {
-        String mclResult = "Most Comfortable Levels: " + mclLevels;
-        Log.d("TestMCLActivity", "MCL Test Result: " + mclResult);
-        saveResultsToFile(mclResult);
-        // Logic to show the test results
-        // For example, navigate to a results screen or save the results
+        // Save MCL test data to SharedPreferences
+        saveMCLTestData();
+
+        // Transition to ViewResultsActivity
+        transitionToViewResults();
     }
 
-    private void saveResultsToFile(String resultData) {
-        String filename = patientGroup + "_" + patientName + "_MCL.txt";
-        try (FileOutputStream fos = openFileOutput(filename, MODE_PRIVATE)) {
-            fos.write(resultData.getBytes());
-            Toast.makeText(this, "Results saved to " + filename, Toast.LENGTH_SHORT).show();
-        } catch (IOException e) {
-            e.printStackTrace();
-            Toast.makeText(this, "Failed to save results", Toast.LENGTH_SHORT).show();
+    private void saveMCLTestData() {
+        SharedPreferences sharedPreferences = getSharedPreferences("TestResults", MODE_PRIVATE);
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+
+        // Generate a unique key for this test
+        String testKey = String.valueOf(System.currentTimeMillis());
+
+        // Log the generated test key
+        Log.d("TestMCLActivity", "Generated testKey: " + testKey);
+
+        // Store group name, patient name, test type
+        editor.putString(testKey + "_group_name", patientGroup);
+        editor.putString(testKey + "_patient_name", patientName);
+        editor.putString(testKey + "_test_type", "MCL");
+
+        // Log the frequencies and MCLs being saved
+        Log.d("TestMCLActivity", "Saving test data for frequencies: " + Arrays.toString(frequencies));
+        Log.d("TestMCLActivity", "Left MCL levels: " + mclLevelsLeft.toString());
+        Log.d("TestMCLActivity", "Right MCL levels: " + mclLevelsRight.toString());
+        Log.d("TestMCLActivity", "Test counts: " + testCounts.toString());
+
+        // Store only conducted frequencies and their corresponding MCLs
+        for (String frequency : frequencies) {
+            String frequencyKeyLeft = testKey + "_" + frequency + "_left";
+            String frequencyKeyRight = testKey + "_" + frequency + "_right";
+
+            // Use a map to get the MCL values safely
+            Integer leftMCL = mclLevelsLeft.get(frequency);
+            Integer rightMCL = mclLevelsRight.get(frequency);
+
+            Log.d("TestMCLActivity", "Checking frequency: " + frequency + " with leftMCL: " + leftMCL + " and rightMCL: " + rightMCL);
+
+            if (leftMCL != null) {
+                editor.putInt(frequencyKeyLeft, leftMCL);
+                Log.d("TestMCLActivity", "Saving left MCL for key: " + frequencyKeyLeft + " = " + leftMCL);
+            }
+            if (rightMCL != null) {
+                editor.putInt(frequencyKeyRight, rightMCL);
+                Log.d("TestMCLActivity", "Saving right MCL for key: " + frequencyKeyRight + " = " + rightMCL);
+            }
+
+            // Save test counts only if tests were conducted
+            if (testCounts.containsKey(frequency + " left")) {
+                editor.putString(frequencyKeyLeft + "_testCounts", testCounts.get(frequency + " left").toString());
+                Log.d("TestMCLActivity", "Saving test counts for key: " + frequencyKeyLeft + "_testCounts" + ": " + testCounts.get(frequency + " left").toString());
+            }
+
+            if (testCounts.containsKey(frequency + " right")) {
+                editor.putString(frequencyKeyRight + "_testCounts", testCounts.get(frequency + " right").toString());
+                Log.d("TestMCLActivity", "Saving test counts for key: " + frequencyKeyRight + "_testCounts" + ": " + testCounts.get(frequency + " right").toString());
+            }
         }
+
+        editor.apply(); // Save changes
+        Log.d("TestMCLActivity", "SharedPreferences saved: " + sharedPreferences.getAll().toString());
+    }
+
+    private void transitionToViewResults() {
+        Intent intent = new Intent(TestMCLActivity.this, ViewResultsActivity.class);
+        startActivity(intent);
+        finish(); // Finish the current activity
     }
 
     private int getFrequencyIndex(int frequency) {
-        switch (frequency) {
-            case 250: return 0;
-            case 500: return 1;
-            case 750: return 2;
-            case 1000: return 3;
-            case 1500: return 4;
-            case 2000: return 5;
-            case 3000: return 6;
-            case 4000: return 7;
-            case 6000: return 8;
-            case 8000: return 9;
-            default: return 0;
+        int[] predefinedFrequencies = {250, 500, 750, 1000, 1500, 2000, 3000, 4000, 6000, 8000}; // Example list
+        for (int i = 0; i < predefinedFrequencies.length; i++) {
+            if (predefinedFrequencies[i] == frequency) {
+                Log.d("TestMCLActivity", "Frequency " + frequency + " found at index: " + i);
+                return i;
+            }
         }
+        Log.d("TestMCLActivity", "Frequency " + frequency + " not found, returning -1");
+        return -1;
     }
 
     private float calculateAmplitude(float desiredDbSpl, float referenceDbSpl) {

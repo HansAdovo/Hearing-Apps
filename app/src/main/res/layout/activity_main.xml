@@ -48,13 +48,6 @@
             android:layout_marginBottom="16dp" />
 
         <Button
-            android:id="@+id/practiceButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Practice"
-            android:layout_marginBottom="16dp" />
-
-        <Button
             android:id="@+id/calibrationButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

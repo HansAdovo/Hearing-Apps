@@ -26,10 +26,6 @@
         <activity android:name=".TestActivity"
             android:exported="true" />
 
-        <!-- Practice Activity -->
-        <activity android:name=".PracticeActivity"
-            android:exported="true" />
-
         <!-- Calibration Activity -->
         <activity android:name=".CalibrationActivity"
             android:exported="true" />

@@ -12,6 +12,7 @@ import androidx.appcompat.app.AlertDialog;
 import android.widget.EditText;
 import android.text.InputType;
 import android.widget.Toast;
+import com.google.gson.Gson;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -50,8 +51,25 @@ public class TestActivity extends AppCompatActivity {
         updateTexts();
 
         protocols = loadProtocols();
-        earOrder = getString(R.string.none);
+        earOrder = prefs.getString("EarOrder", getString(R.string.none)); // Set default value if null
         lastSavedProtocol = null;
+
+        // Load test sequence from SharedPreferences
+        Gson gson = new Gson();
+        String json = prefs.getString("TestSequence", "");
+        if (!json.isEmpty()) {
+            testSequence = gson.fromJson(json, ArrayList.class);
+        }
+        if (testSequence == null) {
+            testSequence = new ArrayList<>();
+        }
+
+        // Update UI based on loaded data
+        updateTestSequence();
+        updateEarOrder(earOrder);
+
+        // Update buttons enabled state based on conditions
+        updateTestButtonsState();
     }
 
     private void initViews() {
@@ -119,9 +137,32 @@ public class TestActivity extends AppCompatActivity {
         btnREarOnly.setOnClickListener(view -> updateEarOrder(getString(R.string.rear_only)));
         btnLEarToREar.setOnClickListener(view -> updateEarOrder(getString(R.string.lear_to_rear)));
         btnREarToLEar.setOnClickListener(view -> updateEarOrder(getString(R.string.rear_to_lear)));
-        btnThresholdTest.setOnClickListener(view -> showPatientInfoDialog());
-        btnMCLTest.setOnClickListener(view -> showMCLPatientInfoDialog());
 
+        btnThresholdTest.setOnClickListener(view -> {
+            if (canStartTest()) {
+                showPatientInfoDialog();
+            } else {
+                Toast.makeText(this, R.string.ear_order_test_sequence_required, Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        btnMCLTest.setOnClickListener(view -> {
+            if (canStartTest()) {
+                showMCLPatientInfoDialog();
+            } else {
+                Toast.makeText(this, R.string.ear_order_test_sequence_required, Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    private boolean canStartTest() {
+        return earOrder != null && !earOrder.equals(getString(R.string.none)) && !testSequence.isEmpty();
+    }
+
+    private void updateTestButtonsState() {
+        boolean canStartTest = canStartTest();
+        btnThresholdTest.setEnabled(canStartTest);
+        btnMCLTest.setEnabled(canStartTest);
     }
 
     private void updateTexts() {
@@ -153,12 +194,16 @@ public class TestActivity extends AppCompatActivity {
             }
             sequence.delete(sequence.length() - 3, sequence.length());  // Remove the last "-> "
             txtTestSequence.setText(sequence.toString());
-
-            // Save test sequence to SharedPreferences
-            SharedPreferences.Editor editor = prefs.edit();
-            editor.putStringSet("TestSequence", new HashSet<>(testSequence));
-            editor.apply();
         }
+
+        // Save test sequence to SharedPreferences as a JSON string
+        Gson gson = new Gson();
+        String json = gson.toJson(testSequence);
+        SharedPreferences.Editor editor = prefs.edit();
+        editor.putString("TestSequence", json);
+        editor.apply();
+
+        updateTestButtonsState();
     }
 
     private void updateEarOrder(String order) {
@@ -166,6 +211,8 @@ public class TestActivity extends AppCompatActivity {
         txtEarOrder.setText(getString(R.string.ear_order) + " " + earOrder);
         prefs.edit().putString("EarOrder", earOrder).apply();
         Log.d("TestActivity", "EarOrder updated: " + earOrder);
+
+        updateTestButtonsState();
     }
 
     private void showSaveProtocolDialog() {
