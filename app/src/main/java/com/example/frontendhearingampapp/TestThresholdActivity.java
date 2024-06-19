@@ -64,6 +64,8 @@ public class TestThresholdActivity extends AppCompatActivity {
 
     private boolean thresholdFound = false; // Flag to indicate if threshold is found
 
+    private boolean initialStep = true; // Flag to track the initial step
+
     private Boolean lastDirectionUp = null;
 
     private int lastFrequency;
@@ -381,17 +383,23 @@ public class TestThresholdActivity extends AppCompatActivity {
         // Check if the direction has changed
         boolean directionChanged = (lastDirectionUp != null) && (lastDirectionUp != directionUp);
 
-        if (isCorrect && shapeWithSound == 2) {
-            // Correct no sound response should not change the volume level
-            nextVolumeLevel = currentVolumeLevel;
-        } else {
+        // Handle no sound responses
+        if (!(isCorrect && shapeWithSound == 2)) {
             currentVolumeLevel = nextVolumeLevel;
             stepCount++;
+        } else {
+            directionChanged = false; // Correct "no sound" responses should not affect reversals
         }
 
-        if (directionChanged && previousVolumeLevel != currentVolumeLevel) {
+        // Only count reversals if the direction changed, it's not the initial step, and the volume level changed
+        if (!initialStep && directionChanged && previousVolumeLevel != currentVolumeLevel) {
             reversalLevels.add(previousVolumeLevel);
             Log.d("TestThresholdActivity", "Reversal added: " + previousVolumeLevel + " dB HL, Total reversals: " + reversalLevels.size());
+        }
+
+        // Reset the initialStep flag after the first step
+        if (initialStep) {
+            initialStep = false;
         }
 
         // Update last direction
