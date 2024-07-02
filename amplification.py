@@ -12,6 +12,8 @@ RATE = 14100
 CHUNK = 256  # Increase for more clarity, decrease for lower latency
 MAX_PLOT_SIZE = CHUNK * 50
 
+AMPLIFICATION_FACTOR = 2.0  # Amplification factor. Adjust the amplification factor as needed
+
 # WDRC parameters for each frequency band to make the audio output more clear
 # This is a technique used to make quiet sounds louder and loud sounds softer, making the overall volume more comfortable and easier to hear.
 wdrc_params = {
@@ -126,6 +128,11 @@ def wdrc(data, threshold, ratio, attack, release, gain, fs):
         output[i] = gainLinear * gain * data[i]
     return output
 
+# this function is used to amplify the audio signal
+# It takes the audio signal and amplification factor as input 
+def amplify(data, factor):
+    return np.clip(data * factor, -32768, 32767).astype(np.int16)
+
 # This function is used to process the audio signal using WDRC
 # It splits the audio signal into frequency bands and applies WDRC to each band separately
 # The function takes the audio signal, sampling frequency, and WDRC parameters as input
@@ -146,6 +153,10 @@ def processWDRC(data, fs, wdrc_params):
     
     # Combine bands and return the processed audio
     processed_data = low + mid + high
+        
+    #processed_data = amplify(processed_data, AMPLIFICATION_FACTOR)
+
+    
     return processed_data
 
 # This function is called periodically from the timer to update the plots and also the audio output
