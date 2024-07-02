@@ -7,9 +7,9 @@ from scipy.signal import butter, lfilter
 
 # Audio stream parameters
 FORMAT = pyaudio.paInt16
-CHANNELS = 1  # Adjust to channel you want to input from
-RATE = 14100
-CHUNK = 256  # Increase for more clarity, decrease for lower latency
+CHANNELS = 1
+RATE = 44100
+CHUNK = 256
 MAX_PLOT_SIZE = CHUNK * 50
 
 # WDRC parameters for each frequency band to make the audio output more clear
@@ -29,6 +29,7 @@ def plots(window):
     # Time Domain Plot
     data_plot = window.addPlot(title="Audio Signal Vs Time")
     data_plot.setXRange(0, MAX_PLOT_SIZE)
+    data_plot.setYRange(-8000,8000)
     data_plot.showGrid(True, True)
     data_plot.addLegend()
     time_curve = data_plot.plot(pen=(24, 215, 248), name="Time Domain Audio")
@@ -53,6 +54,18 @@ time_curve, fft_curve = plots(win)
 
 # Buffer for storing audio data
 audio = np.array([], dtype=np.int16)
+
+def bandPassHelper(lowcut, highcut, fs, order=5):
+    nyq = 0.5 * fs
+    low = lowcut / nyq
+    high = highcut / nyq
+    b, a = butter(order, [low, high], btype='band')
+    return b, a
+
+def bandPassFilter(data, lowcut, highcut, fs, order=5):
+    b, a = bandPassHelper(lowcut, highcut, fs, order=order)
+    y = lfilter(b, a, data)
+    return y
 
 # This function is used to apply the WDRC to the audio signal
 # WDRC stands for Wide Dynamic Range Compression
@@ -109,8 +122,11 @@ def update():
     dataSample = np.frombuffer(rawData, dtype=np.int16)
     audio = np.append(audio, dataSample)
     
-    # Apply the WDRC using the bandpass filter
-    dataSample = wdrc(dataSample, wdrc_params['threshold'], wdrc_params['ratio'], wdrc_params['attack_time'], wdrc_params['release_time'], wdrc_params['gain'], RATE)
+    # Apply butter-worth bandpass filter to the audio data
+    dataSample = bandPassFilter(dataSample, 20, 6000, RATE, order=5)
+
+    # Apply the WDRC
+    #dataSample = wdrc(dataSample, wdrc_params['threshold'], wdrc_params['ratio'], wdrc_params['attack_time'], wdrc_params['release_time'], wdrc_params['gain'], RATE)
 
     # Output audio data
     output_stream.write(dataSample.tobytes())
