@@ -13,6 +13,7 @@ import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
 import android.widget.Button;
 import android.widget.ImageView;
+import android.widget.SeekBar;
 import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
 import android.widget.Toast;
@@ -25,14 +26,10 @@ import java.util.Map;
 
 public class TestMCLActivity extends AppCompatActivity {
 
-    private Button btnReturnToTitle;
-    private Button btnTooSoft;
-    private Button btnSlightlySoft;
-    private Button btnMostComfortable;
-    private Button btnTooLoud;
-    private Button btnRepeat;
-    private Button btnPause;
-    private TextView txtInstructions;
+    private Button btnReturnToTitle, btnRepeat, btnDone;
+    private Button[] ratingButtons = new Button[11];
+    private SeekBar volumeSlider;
+    private TextView txtInstructions, txtCurrentVolume;
     private ImageView imageTopShape;
 
     private Handler handler;
@@ -56,7 +53,6 @@ public class TestMCLActivity extends AppCompatActivity {
 
     private Map<String, Integer> mclLevelsLeft = new HashMap<>();
     private Map<String, Integer> mclLevelsRight = new HashMap<>();
-    private Map<String, Integer> mostComfortableCounts = new HashMap<>();
     private HashMap<String, List<Integer>> testCounts = new HashMap<>();
     private AudioTrack audioTrack;
 
@@ -69,14 +65,26 @@ public class TestMCLActivity extends AppCompatActivity {
         setContentView(R.layout.activity_test_mcl);
 
         btnReturnToTitle = findViewById(R.id.btnReturnToTitle);
-        btnTooSoft = findViewById(R.id.btnTooSoft);
-        btnSlightlySoft = findViewById(R.id.btnSlightlySoft);
-        btnMostComfortable = findViewById(R.id.btnMostComfortable);
-        btnTooLoud = findViewById(R.id.btnTooLoud);
         btnRepeat = findViewById(R.id.btnRepeat);
-        btnPause = findViewById(R.id.btnPause);
+        btnDone = findViewById(R.id.btnDone);
+        volumeSlider = findViewById(R.id.volumeSlider);
         txtInstructions = findViewById(R.id.txtInstructions);
+        txtCurrentVolume = findViewById(R.id.txtCurrentVolume);
         imageTopShape = findViewById(R.id.imageTopShape);
+
+        for (int i = 0; i <= 10; i++) {
+            int resID = getResources().getIdentifier("btnRating" + i, "id", getPackageName());
+            ratingButtons[i] = findViewById(resID);
+            int finalI = i;
+            ratingButtons[i].setOnClickListener(view -> handleUserRating(finalI));
+        }
+
+        volumeSlider.setMax(MAX_VOLUME_DB_HL);
+        volumeSlider.setProgress(currentVolumeLevel);
+        txtCurrentVolume.setText(String.valueOf(currentVolumeLevel)); // Initial volume display
+
+        // Disable SeekBar touch
+        volumeSlider.setOnTouchListener((v, event) -> true);
 
         String instructions = getString(R.string.mcl_test_instructions);
         txtInstructions.setText(instructions);
@@ -87,12 +95,8 @@ public class TestMCLActivity extends AppCompatActivity {
             finish(); // Finish current activity to release resources
         });
 
-        btnTooSoft.setOnClickListener(view -> handleUserResponse("Too Soft"));
-        btnSlightlySoft.setOnClickListener(view -> handleUserResponse("Comfortable but Slightly Soft"));
-        btnMostComfortable.setOnClickListener(view -> handleUserResponse("Most Comfortable"));
-        btnTooLoud.setOnClickListener(view -> handleUserResponse("Too Loud"));
         btnRepeat.setOnClickListener(view -> repeatCurrentTest());
-        btnPause.setOnClickListener(view -> togglePauseTest());
+        btnDone.setOnClickListener(view -> handleDone());
 
         handler = new Handler();
         shakeAnimation = AnimationUtils.loadAnimation(this, R.anim.shake);
@@ -246,16 +250,33 @@ public class TestMCLActivity extends AppCompatActivity {
     }
 
     private void setButtonsEnabled(boolean enabled) {
-        btnTooSoft.setEnabled(enabled);
-        btnSlightlySoft.setEnabled(enabled);
-        btnMostComfortable.setEnabled(enabled);
-        btnTooLoud.setEnabled(enabled);
+        for (Button btn : ratingButtons) {
+            btn.setEnabled(enabled);
+        }
         btnRepeat.setEnabled(enabled);
-        btnPause.setEnabled(enabled);
+        btnDone.setEnabled(enabled);
     }
 
-    private void handleUserResponse(String response) {
-        Log.d("TestMCLActivity", "User response: " + response + ", current dB HL: " + currentVolumeLevel);
+    private void handleUserRating(int rating) {
+        Log.d("TestMCLActivity", "User rating: " + rating);
+
+        // Adjust the volume level based on the rating
+        if (rating < 5) {
+            currentVolumeLevel += (5 - rating);
+        } else if (rating > 5) {
+            currentVolumeLevel -= (rating - 5);
+        }
+
+        // Ensure volume is within bounds
+        if (currentVolumeLevel < MIN_VOLUME_DB_HL) {
+            currentVolumeLevel = MIN_VOLUME_DB_HL;
+        } else if (currentVolumeLevel > MAX_VOLUME_DB_HL) {
+            currentVolumeLevel = MAX_VOLUME_DB_HL;
+        }
+
+        // Update the slider
+        volumeSlider.setProgress(currentVolumeLevel);
+        txtCurrentVolume.setText(String.valueOf(currentVolumeLevel)); // Update the displayed volume
 
         // Log the current volume level
         String frequencyKey = frequencies[currentFrequencyIndex] + " " + currentEar;
@@ -265,72 +286,20 @@ public class TestMCLActivity extends AppCompatActivity {
         testCounts.get(frequencyKey).add(currentVolumeLevel);
         Log.d("TestMCLActivity", "Test counts for " + frequencyKey + ": " + testCounts.get(frequencyKey));
 
-        switch (response) {
-            case "Too Soft":
-                currentVolumeLevel += 5;
-                break;
-            case "Comfortable but Slightly Soft":
-                currentVolumeLevel += 2.5;
-                break;
-            case "Most Comfortable":
-                if (currentEar.equals("left")) {
-                    mclLevelsLeft.put(frequencies[currentFrequencyIndex], currentVolumeLevel);
-                } else {
-                    mclLevelsRight.put(frequencies[currentFrequencyIndex], currentVolumeLevel);
-                }
-                increaseComfortableCount(frequencies[currentFrequencyIndex]);
-                if (checkConsistency()) {
-                    Log.d("TestMCLActivity", "MCL level determined for frequency: " + frequencies[currentFrequencyIndex] + ", Ear: " + currentEar + ", Level: " + currentVolumeLevel);
-                    handleEarSwitchOrEnd();
-                    return;
-                }
-                break;
-            case "Too Loud":
-                currentVolumeLevel -= 5;
-                break;
-        }
-
-        if (currentVolumeLevel < MIN_VOLUME_DB_HL) {
-            currentVolumeLevel = MIN_VOLUME_DB_HL;
-            if (currentEar.equals("left")) {
-                mclLevelsLeft.put(frequencies[currentFrequencyIndex], currentVolumeLevel);
-            } else {
-                mclLevelsRight.put(frequencies[currentFrequencyIndex], currentVolumeLevel);
-            }
-            Log.d("TestMCLActivity", "MCL level determined for frequency: " + frequencies[currentFrequencyIndex] + ", Ear: " + currentEar + ", Level: " + currentVolumeLevel);
-            handleEarSwitchOrEnd();
-            return;
-        } else if (currentVolumeLevel > MAX_VOLUME_DB_HL) {
-            currentVolumeLevel = MAX_VOLUME_DB_HL;
-            if (currentEar.equals("left")) {
-                mclLevelsLeft.put(frequencies[currentFrequencyIndex], currentVolumeLevel);
-            } else {
-                mclLevelsRight.put(frequencies[currentFrequencyIndex], currentVolumeLevel);
-            }
-            Log.d("TestMCLActivity", "MCL level determined for frequency: " + frequencies[currentFrequencyIndex] + ", Ear: " + currentEar + ", Level: " + currentVolumeLevel);
-            handleEarSwitchOrEnd();
-            return;
-        }
-
-        runTestSequence(); // Continue to the next test immediately
+        // Play the tone with the new volume
+        runTestSequence();
     }
 
-    private boolean checkConsistency() {
-        String currentFrequency = frequencies[currentFrequencyIndex] + " " + currentEar;
-        int comfortableCount = mostComfortableCounts.containsKey(currentFrequency) ? mostComfortableCounts.get(currentFrequency) : 0;
+    private void handleDone() {
+        Log.d("TestMCLActivity", "Test completed at volume level: " + currentVolumeLevel);
 
-        if (comfortableCount >= 3) {
-            Log.d("TestMCLActivity", "MCL level determined for frequency: " + frequencies[currentFrequencyIndex] + ", Ear: " + currentEar + ", Level: " + currentVolumeLevel);
-            return true;
+        if (currentEar.equals("left")) {
+            mclLevelsLeft.put(frequencies[currentFrequencyIndex], currentVolumeLevel);
+        } else {
+            mclLevelsRight.put(frequencies[currentFrequencyIndex], currentVolumeLevel);
         }
 
-        return false;
-    }
-
-    private void increaseComfortableCount(String frequency) {
-        String key = frequency + " " + currentEar;
-        int count = mostComfortableCounts.containsKey(key) ? mostComfortableCounts.get(key) : 0;
-        mostComfortableCounts.put(key, count + 1);
+        handleEarSwitchOrEnd();
     }
 
     private void handleEarSwitchOrEnd() {
@@ -341,8 +310,10 @@ public class TestMCLActivity extends AppCompatActivity {
                 currentEar = currentEar.equals("left") ? "right" : "left";
                 currentFrequencyIndex = 0;
                 currentVolumeLevel = 50; // Reset volume level for the other ear
-                isTestInProgress = false; // Mark the test as finished for the current ear
-                runTestSequence(); // Continue with the test for the other ear immediately
+                volumeSlider.setProgress(currentVolumeLevel); // Reset the slider to 50
+                txtCurrentVolume.setText(String.valueOf(currentVolumeLevel)); // Update the displayed volume
+                isTestInProgress = false;
+                runTestSequence();
             } else {
                 showResults();
             }
@@ -352,7 +323,9 @@ public class TestMCLActivity extends AppCompatActivity {
     }
 
     private void resetForNextFrequency() {
-        currentVolumeLevel = 50; // Reset volume level for the next frequency
+        currentVolumeLevel = 50;
+        volumeSlider.setProgress(currentVolumeLevel); // Reset the slider to 50
+        txtCurrentVolume.setText(String.valueOf(currentVolumeLevel)); // Update the displayed volume
         runTestSequence();
     }
 
@@ -360,13 +333,6 @@ public class TestMCLActivity extends AppCompatActivity {
         if (isTestInProgress) return; // Prevent repeat if a test is already in progress
         int frequency = Integer.parseInt(frequencies[currentFrequencyIndex].replace(" Hz", ""));
         playTone(frequency);
-    }
-
-    private void togglePauseTest() {
-        isPaused = !isPaused;
-        if (!isPaused) {
-            runTestSequence(); // Resume immediately
-        }
     }
 
     private void showResults() {

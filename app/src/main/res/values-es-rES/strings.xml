@@ -74,7 +74,7 @@
     <string name="frequency">Frecuencia</string>
     <string name="adjust_level">Ajuste los niveles de db SPL para 70 dbHL por debajo</string>
     <string name="Playsound">Reproduce sonido</string>
-    <string name="mcl_test_instructions">Después de cada tono, presione el botón correspondiente a cómo le parece el volumen: Demasiado suave, Cómodo pero ligeramente suave, Más cómodo o Demasiado alto.</string>
+    <string name="mcl_test_instructions">Después de cada tono, presione el botón de calificación del 0 al 10 correspondiente a cómo le parece el volumen. 10 significa que es demasiado ruidoso y 0 significa que es demasiado suave. Presione el botón Listo cuando haya encontrado su nivel de volumen cómodo.</string>
     <string name="too_soft">Muy suave</string>
     <string name="comfortable_but_slightly_soft">Cómodo pero ligeramente suave</string>
     <string name="most_comfortable">Más cómoda</string>
@@ -90,4 +90,5 @@
     <string name="no_test_results">No hay resultados de prueba disponibles</string>
     <string name="ear_order_test_sequence_required">Se requiere la prueba de secuencia</string>
     <string name="current_setting_no_setting">Configuración actual:</string>
+    <string name="done">Hecho</string>
 </resources>

@@ -16,7 +16,7 @@
     <TextView
         android:id="@+id/txtInstructions"
         android:layout_width="match_parent"
-        android:layout_height="144dp"
+        android:layout_height="155dp"
         android:gravity="center"
         android:padding="16dp"
         android:textColor="@android:color/black"
@@ -24,7 +24,7 @@
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="201dp"
+        android:layout_height="244dp"
         android:layout_weight="1"
         android:gravity="center"
         android:orientation="vertical">
@@ -32,41 +32,118 @@
         <ImageView
             android:id="@+id/imageTopShape"
             android:layout_width="wrap_content"
-            android:layout_height="177dp"
+            android:layout_height="189dp"
             android:src="@drawable/shapesoundindicator" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/txtCurrentVolume"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:padding="8dp"
+        android:textColor="@android:color/black"
+        android:textSize="18sp" />
+
+    <SeekBar
+        android:id="@+id/volumeSlider"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:max="100" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:paddingTop="16dp"
+        android:layout_marginBottom="16dp">
+
+        <Button
+            android:id="@+id/btnRating0"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="0" />
+
+        <Button
+            android:id="@+id/btnRating1"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="1" />
+
+        <Button
+            android:id="@+id/btnRating2"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="2" />
+
+        <Button
+            android:id="@+id/btnRating3"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="3" />
+
+        <Button
+            android:id="@+id/btnRating4"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="4" />
+
+        <Button
+            android:id="@+id/btnRating5"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="5" />
     </LinearLayout>
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
+        android:orientation="horizontal"
         android:gravity="center"
-        android:paddingTop="16dp">
+        android:paddingTop="16dp"
+        android:layout_marginBottom="16dp">
 
         <Button
-            android:id="@+id/btnTooSoft"
-            android:layout_width="match_parent"
+            android:id="@+id/btnRating6"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:text="Too Soft" />
+            android:layout_weight="1"
+            android:text="6" />
 
         <Button
-            android:id="@+id/btnSlightlySoft"
-            android:layout_width="match_parent"
+            android:id="@+id/btnRating7"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:text="Comfortable but Slightly Soft" />
+            android:layout_weight="1"
+            android:text="7" />
 
         <Button
-            android:id="@+id/btnMostComfortable"
-            android:layout_width="match_parent"
+            android:id="@+id/btnRating8"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:text="Most Comfortable" />
+            android:layout_weight="1"
+            android:text="8" />
 
         <Button
-            android:id="@+id/btnTooLoud"
-            android:layout_width="match_parent"
+            android:id="@+id/btnRating9"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:text="Too Loud" />
+            android:layout_weight="1"
+            android:text="9" />
 
+        <Button
+            android:id="@+id/btnRating10"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="10" />
     </LinearLayout>
 
     <LinearLayout
@@ -84,11 +161,11 @@
             android:text="@string/repeat" />
 
         <Button
-            android:id="@+id/btnPause"
+            android:id="@+id/btnDone"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="@string/pause" />
+            android:text="@string/done" />
     </LinearLayout>
 
     <Button
