@@ -158,6 +158,13 @@ public class TestMCLActivity extends AppCompatActivity {
 
     private void startTestSequence() {
         Log.d("TestMCLActivity", "Starting test sequence with frequencies: " + Arrays.toString(frequencies));
+        for (String frequency : frequencies) {
+            String frequencyKey = frequency + " " + currentEar;
+            if (!testCounts.containsKey(frequencyKey)) {
+                testCounts.put(frequencyKey, new ArrayList<>());
+                testCounts.get(frequencyKey).add(50); // Add initial 50 dB HL value
+            }
+        }
         runTestSequence(); // Start the test sequence immediately
     }
 
@@ -312,6 +319,16 @@ public class TestMCLActivity extends AppCompatActivity {
                 currentVolumeLevel = 50; // Reset volume level for the other ear
                 volumeSlider.setProgress(currentVolumeLevel); // Reset the slider to 50
                 txtCurrentVolume.setText(String.valueOf(currentVolumeLevel)); // Update the displayed volume
+
+                // Add initial 50 dB HL value for the new ear
+                for (String frequency : frequencies) {
+                    String frequencyKey = frequency + " " + currentEar;
+                    if (!testCounts.containsKey(frequencyKey)) {
+                        testCounts.put(frequencyKey, new ArrayList<>());
+                        testCounts.get(frequencyKey).add(50); // Add initial 50 dB HL value
+                    }
+                }
+
                 isTestInProgress = false;
                 runTestSequence();
             } else {
