@@ -74,7 +74,7 @@
     <string name="frequency">Frequency</string>
     <string name="adjust_level">Adjust db SPL levels for 70 dbHL below</string>
     <string name="Playsound">Plays sound</string>
-    <string name="mcl_test_instructions">"After each tone, press the button corresponding to how the volume feels to you: Too Soft, Comfortable but Slightly Soft, Most Comfortable, or Too Loud. "</string>
+    <string name="mcl_test_instructions">After each tone, press the button rating from 0 to 10 corresponding to how the volume feels to you. 10 means it is too loud and 0 means it is too soft. Press the done button when you have found your comfortable volume level.</string>
     <string name="too_soft">Too Soft</string>
     <string name="comfortable_but_slightly_soft">Comfortable but Slightly Soft</string>
     <string name="most_comfortable">Most Comfortable</string>
@@ -90,4 +90,5 @@
     <string name="no_test_results">No test results available</string>
     <string name="ear_order_test_sequence_required">Test Sequence Required</string>
     <string name="current_setting_no_setting">Current Setting:</string>
+    <string name="done">Done</string>
 </resources>

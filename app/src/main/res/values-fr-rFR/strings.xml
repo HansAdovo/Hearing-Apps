@@ -74,7 +74,7 @@
     <string name="frequency">Fréquence</string>
     <string name="adjust_level">Ajustez les niveaux de db SPL pour 70 dbHL ci-dessous</string>
     <string name="Playsound">Joue du son</string>
-    <string name="mcl_test_instructions">Après chaque tonalité, appuyez sur le bouton correspondant à la sensation du volume : Trop doux, Confortable mais légèrement doux, Très confortable ou Trop fort.</string>
+    <string name="mcl_test_instructions">Après chaque tonalité, appuyez sur le bouton note de 0 à 10 correspondant à la sensation du volume. 10 signifie que c\'est trop fort et 0 signifie que c\'est trop doux. Appuyez sur le bouton Terminé lorsque vous avez trouvé votre niveau de volume confortable.</string>
     <string name="too_soft">Trop mou</string>
     <string name="comfortable_but_slightly_soft">Confortable mais légèrement doux</string>
     <string name="most_comfortable">Le plus confortable</string>
@@ -90,4 +90,5 @@
     <string name="no_test_results">Aucun résultat de test disponible</string>
     <string name="ear_order_test_sequence_required">Test de séquence requise</string>
     <string name="current_setting_no_setting">Paramètre actuel:</string>
+    <string name="done">Faire un don</string>
 </resources>
