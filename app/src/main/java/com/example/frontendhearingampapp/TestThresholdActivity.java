@@ -81,10 +81,8 @@ public class TestThresholdActivity extends AppCompatActivity {
     private AudioTrack audioTrack;
     private Thread audioThread;
 
-    private String leftEarOnly;
-    private String rightEarOnly;
-    private String leftEarToRightEar;
-    private String rightEarToLeftEar;
+    private String[] ears = {"left", "right"};
+    private int currentEarIndex = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -99,11 +97,6 @@ public class TestThresholdActivity extends AppCompatActivity {
         imageTopShape = findViewById(R.id.imageTopShape);
         imageBottomShape = findViewById(R.id.imageBottomShape);
         txtTestProgress = findViewById(R.id.txtTestProgress);
-
-        leftEarOnly = getString(R.string.lear_only);
-        rightEarOnly = getString(R.string.rear_only);
-        leftEarToRightEar = getString(R.string.lear_to_rear);
-        rightEarToLeftEar = getString(R.string.rear_to_lear);
 
         String instructions = getString(R.string.test_instructions);
         txtInstructions.setText(instructions);
@@ -150,25 +143,21 @@ public class TestThresholdActivity extends AppCompatActivity {
     }
 
     private void applyEarOrderSettings() {
-
         earOrder = earOrder.trim().replaceAll("\\s+", " "); // Remove any leading or trailing whitespace and standardize spaces
 
         // Normalize the ear order string for consistent comparison
         earOrder = earOrder.replaceAll("\\s+", " ").replace("L.Ear", "L. Ear").replace("R.Ear", "R. Ear");
 
-        // Use normalized ear order for comparisons
-        if (earOrder.equalsIgnoreCase(leftEarOnly) || earOrder.contains(leftEarOnly)) {
-            currentEar = "left";
-        } else if (earOrder.equalsIgnoreCase(rightEarOnly) || earOrder.contains(rightEarOnly)) {
-            currentEar = "right";
-        } else if (earOrder.equalsIgnoreCase(leftEarToRightEar) || earOrder.contains(leftEarToRightEar)) {
-            currentEar = "left";
-        } else if (earOrder.equalsIgnoreCase(rightEarToLeftEar) || earOrder.contains(rightEarToLeftEar)) {
-            currentEar = "right";
+        if (earOrder.equalsIgnoreCase(getString(R.string.lear_only)) || earOrder.equalsIgnoreCase(getString(R.string.lear_to_rear))) {
+            currentEarIndex = 0; // Start with left ear
+        } else if (earOrder.equalsIgnoreCase(getString(R.string.rear_only)) || earOrder.equalsIgnoreCase(getString(R.string.rear_to_lear))) {
+            currentEarIndex = 1; // Start with right ear
         } else {
             Log.e("TestThresholdActivity", "Unknown ear order: " + earOrder);
+            currentEarIndex = 0; // Default to left ear
         }
-        Log.d("TestThresholdActivity", "Current ear set to: " + currentEar);
+        currentEar = ears[currentEarIndex];
+        Log.d("TestThresholdActivity", "Initial ear set to: " + currentEar);
     }
 
     private void loadCalibrationSettings() {
@@ -189,11 +178,14 @@ public class TestThresholdActivity extends AppCompatActivity {
     private void runTestSequence() {
         if (isPaused || isTestInProgress) return;
 
-        isTestInProgress = true; // Mark the test as in progress
+        isTestInProgress = true;
 
         if (currentFrequencyIndex < frequencies.length) {
             String frequencyStr = frequencies[currentFrequencyIndex];
             int frequency = Integer.parseInt(frequencyStr.replace(" Hz", ""));
+
+            currentEar = ears[currentEarIndex];
+
             int shapeWithSound;
             // Ensure "No Sound" does not occur more than twice in a row and there are more sound tests than "No Sound" tests
             if (noSoundCount >= 2 || (soundTestCount < noSoundCount)) {
@@ -209,20 +201,10 @@ public class TestThresholdActivity extends AppCompatActivity {
             } else {
                 soundTestCount++;
             }
+
             playTone(frequency, shapeWithSound);
         } else {
-            if ((currentEar.equals("left") && earOrder.equalsIgnoreCase(leftEarToRightEar)) ||
-                    (currentEar.equals("right") && earOrder.equalsIgnoreCase(rightEarToLeftEar))) {
-                currentEar = currentEar.equals("left") ? "right" : "left";
-                currentFrequencyIndex = 0;
-                stepCount = 0;
-                currentVolumeLevel = 50; // Reset volume level for the other ear
-                thresholdFound = false;
-                isTestInProgress = false; // Mark the test as finished for the current ear
-                runTestSequence(); // Continue with the test for the other ear immediately
-            } else {
-                showResults();
-            }
+            showResults();
         }
     }
 
@@ -337,7 +319,7 @@ public class TestThresholdActivity extends AppCompatActivity {
         }, 4000); // Ensure to stop the tone after the total duration
 
         // Add current dB HL to testCounts
-        String frequencyKey = currentFrequencyIndex + " " + currentEar;
+        String frequencyKey = currentFrequencyIndex + " " + currentEarIndex;
         if (!testCounts.containsKey(frequencyKey)) {
             testCounts.put(frequencyKey, new ArrayList<>());
         }
@@ -375,24 +357,22 @@ public class TestThresholdActivity extends AppCompatActivity {
     private void processUserResponse(boolean isCorrect) {
         int previousVolumeLevel = currentVolumeLevel;
         int nextVolumeLevel = getNextDbHL(isCorrect);
-        Log.d("TestThresholdActivity", "User response: " + (isCorrect ? "Correct" : "Incorrect") + ", previous dB HL: " + previousVolumeLevel + ", current dB HL: " + nextVolumeLevel);
+
+        // Determine if there's an actual change in volume
+        boolean volumeChanged = nextVolumeLevel != previousVolumeLevel;
 
         // Determine the direction of change
-        boolean directionUp = previousVolumeLevel < nextVolumeLevel;
+        boolean directionUp = nextVolumeLevel > previousVolumeLevel;
 
         // Check if the direction has changed
-        boolean directionChanged = (lastDirectionUp != null) && (lastDirectionUp != directionUp);
+        boolean directionChanged = volumeChanged && (lastDirectionUp != null) && (lastDirectionUp != directionUp);
 
-        // Handle no sound responses
-        if (!(isCorrect && shapeWithSound == 2)) {
-            currentVolumeLevel = nextVolumeLevel;
-            stepCount++;
-        } else {
-            directionChanged = false; // Correct "no sound" responses should not affect reversals
-        }
+        // Update the current volume level
+        currentVolumeLevel = nextVolumeLevel;
+        stepCount++;
 
-        // Only count reversals if the direction changed, it's not the initial step, and the volume level changed
-        if (!initialStep && directionChanged && previousVolumeLevel != currentVolumeLevel) {
+        // Count reversals based on direction change, only if the volume actually changed
+        if (!initialStep && directionChanged) {
             reversalLevels.add(previousVolumeLevel);
             Log.d("TestThresholdActivity", "Reversal added: " + previousVolumeLevel + " dB HL, Total reversals: " + reversalLevels.size());
         }
@@ -402,8 +382,10 @@ public class TestThresholdActivity extends AppCompatActivity {
             initialStep = false;
         }
 
-        // Update last direction
-        lastDirectionUp = directionUp;
+        // Update last direction only if the volume changed
+        if (volumeChanged) {
+            lastDirectionUp = directionUp;
+        }
 
         // Log if currentVolumeLevel is exactly at the minimum or maximum
         if (currentVolumeLevel == MIN_VOLUME_DB_HL || currentVolumeLevel == MAX_VOLUME_DB_HL) {
@@ -411,59 +393,42 @@ public class TestThresholdActivity extends AppCompatActivity {
         }
 
         // Check for test termination condition
-        Log.d("TestThresholdActivity", "Checking termination condition: currentVolumeLevel = " + currentVolumeLevel);
         if (reversalLevels.size() >= 4 || currentVolumeLevel <= MIN_VOLUME_DB_HL || currentVolumeLevel >= MAX_VOLUME_DB_HL) {
             if (reversalLevels.size() >= 4) {
+                // Calculate threshold using the last 4 reversal points
                 int sum = 0;
-                for (int level : reversalLevels) {
-                    sum += level;
+                int count = Math.min(4, reversalLevels.size());
+                for (int i = reversalLevels.size() - count; i < reversalLevels.size(); i++) {
+                    sum += reversalLevels.get(i);
                 }
-                currentVolumeLevel = sum / reversalLevels.size();
+                currentVolumeLevel = Math.round((float) sum / count);
                 thresholdFound = true;
                 Log.d("TestThresholdActivity", "Threshold found at frequency: " + frequencies[currentFrequencyIndex] + " , volume level: " + currentVolumeLevel + " dB HL");
-
-                // Save threshold based on current ear
-                if (currentEar.equals("left")) {
-                    leftEarThresholds.add(currentVolumeLevel);
-                    Log.d("TestThresholdActivity", "Left ear threshold added: " + currentVolumeLevel + " dB HL");
-                } else {
-                    rightEarThresholds.add(currentVolumeLevel);
-                    Log.d("TestThresholdActivity", "Right ear threshold added: " + currentVolumeLevel + " dB HL");
-                }
-
             } else if (currentVolumeLevel < MIN_VOLUME_DB_HL || currentVolumeLevel > MAX_VOLUME_DB_HL) {
                 thresholdFound = true;
                 currentVolumeLevel = (currentVolumeLevel < MIN_VOLUME_DB_HL) ? MIN_VOLUME_DB_HL : MAX_VOLUME_DB_HL;
                 Log.d("TestThresholdActivity", "Threshold found at frequency: " + frequencies[currentFrequencyIndex] + " , volume level: " + currentVolumeLevel + " dB HL");
+            }
+
+            if (thresholdFound) {
+                // Add the final threshold value to test counts
+                String frequencyKey = currentFrequencyIndex + " " + currentEarIndex;
+                if (!testCounts.containsKey(frequencyKey)) {
+                    testCounts.put(frequencyKey, new ArrayList<>());
+                }
+                testCounts.get(frequencyKey).add(currentVolumeLevel);
 
                 // Save threshold based on current ear
-                if (currentEar.equals("left")) {
+                if (currentEarIndex == 0) {
                     leftEarThresholds.add(currentVolumeLevel);
                     Log.d("TestThresholdActivity", "Left ear threshold added: " + currentVolumeLevel + " dB HL");
                 } else {
                     rightEarThresholds.add(currentVolumeLevel);
                     Log.d("TestThresholdActivity", "Right ear threshold added: " + currentVolumeLevel + " dB HL");
                 }
-            }
 
-            if (thresholdFound) {
-                currentFrequencyIndex++;
-                resetTestVariablesForNextFrequency();
-                if (currentFrequencyIndex >= frequencies.length) {
-                    if (earOrder.contains("->") && ((earOrder.equalsIgnoreCase(leftEarToRightEar) && currentEar.equals("left")) ||
-                            (earOrder.equalsIgnoreCase(rightEarToLeftEar) && currentEar.equals("right")))) {
-                        currentEar = currentEar.equals("left") ? "right" : "left";
-                        currentFrequencyIndex = 0;
-                        stepCount = 0;
-                        currentVolumeLevel = 50; // Reset volume level for the other ear
-                        thresholdFound = false;
-                        Log.d("TestThresholdActivity", "Switching to the other ear: " + currentEar);
-                        runTestSequence(); // Ensure the test continues for the other ear immediately
-                    } else {
-                        showResults();
-                    }
-                    return;
-                }
+                switchEarOrNextFrequency();
+                return;
             }
         }
 
@@ -471,12 +436,55 @@ public class TestThresholdActivity extends AppCompatActivity {
         runTestSequence();
     }
 
+    private void switchEarOrNextFrequency() {
+        // Add the final dB level to test counts before switching
+        String frequencyKey = currentFrequencyIndex + " " + currentEarIndex;
+        if (!testCounts.containsKey(frequencyKey)) {
+            testCounts.put(frequencyKey, new ArrayList<>());
+        }
+        testCounts.get(frequencyKey).add(currentVolumeLevel);
+
+        boolean isTestingBothEars = !earOrder.equalsIgnoreCase(getString(R.string.lear_only)) && !earOrder.equalsIgnoreCase(getString(R.string.rear_only));
+
+        if (isTestingBothEars) {
+            if (earOrder.equalsIgnoreCase(getString(R.string.lear_to_rear))) {
+                if (currentEarIndex == 0) {
+                    currentEarIndex = 1;
+                } else {
+                    currentEarIndex = 0;
+                    currentFrequencyIndex++;
+                }
+            } else if (earOrder.equalsIgnoreCase(getString(R.string.rear_to_lear))) {
+                if (currentEarIndex == 1) {
+                    currentEarIndex = 0;
+                } else {
+                    currentEarIndex = 1;
+                    currentFrequencyIndex++;
+                }
+            }
+        } else {
+            // For single ear testing, just move to the next frequency
+            currentFrequencyIndex++;
+        }
+
+        if (currentFrequencyIndex >= frequencies.length) {
+            showResults();
+        } else {
+            currentEar = ears[currentEarIndex];
+            resetTestVariablesForNextFrequency();
+            updateTestProgress();
+            runTestSequence();
+        }
+    }
+
     private void resetTestVariablesForNextFrequency() {
-        currentVolumeLevel = 50; // Reset volume level for the next frequency
+        currentVolumeLevel = 50;
         stepCount = 0;
         reversalLevels.clear();
         thresholdFound = false;
-        lastDirectionUp = null; // Reset last direction for the next frequency
+        lastDirectionUp = null;
+        initialStep = true;
+        // Reset any other necessary variables
     }
 
     private int getNextDbHL(boolean isCorrect) {
@@ -517,49 +525,34 @@ public class TestThresholdActivity extends AppCompatActivity {
     }
 
     private void updateTestProgress() {
-        int progressPercentage = 0;
+        int totalSteps = frequencies.length;
+        boolean testingBothEars = !earOrder.equalsIgnoreCase(getString(R.string.lear_only)) && !earOrder.equalsIgnoreCase(getString(R.string.rear_only));
 
-        if (earOrder.contains("->")) {
-            int totalSteps = frequencies.length * 2; // Two ears
-            int completedSteps = currentFrequencyIndex + (currentEar.equals("right") ? frequencies.length : 0);
+        if (testingBothEars) {
+            totalSteps *= 2; // Double the steps for testing both ears
+        }
 
-            // Special handling for "R. Ear -> L. Ear" to ensure correct progress calculation
-            if ("R. Ear -> L. Ear".equalsIgnoreCase(earOrder)) {
-                if ("right".equals(currentEar)) {
-                    completedSteps = currentFrequencyIndex;
-                } else {
-                    completedSteps = frequencies.length + currentFrequencyIndex;
+        int completedSteps = currentFrequencyIndex;
+        if (testingBothEars) {
+            completedSteps *= 2; // Each completed frequency counts for both ears
+
+            if (earOrder.equalsIgnoreCase(getString(R.string.lear_to_rear))) {
+                if (currentEarIndex == 1) { // Right ear
+                    completedSteps += 1; // Add 1 for the completed left ear at this frequency
+                }
+            } else if (earOrder.equalsIgnoreCase(getString(R.string.rear_to_lear))) {
+                if (currentEarIndex == 0) { // Left ear
+                    completedSteps += 1; // Add 1 for the completed right ear at this frequency
                 }
             }
-
-            progressPercentage = (completedSteps * 100) / totalSteps;
-        } else {
-            progressPercentage = (currentFrequencyIndex * 100) / frequencies.length;
         }
+
+        int progressPercentage = (completedSteps * 100) / totalSteps;
 
         String progressText = getString(R.string.test_progress, progressPercentage);
         txtTestProgress.setText(progressText);
 
-        Log.d("TestThresholdActivity", "Test progress: " + progressPercentage + "%");
-
-        // Check if the test is complete
-        if (progressPercentage >= 100) {
-            showResults();
-        } else if (currentFrequencyIndex >= frequencies.length) {
-            // Handle ear switch logic based on ear order
-            if ((currentEar.equals("left") && leftEarToRightEar.equalsIgnoreCase(earOrder)) ||
-                    (currentEar.equals("right") && rightEarToLeftEar.equalsIgnoreCase(earOrder))) {
-                currentEar = currentEar.equals("left") ? "right" : "left";
-                currentFrequencyIndex = 0;
-                stepCount = 0;
-                currentVolumeLevel = 50; // Reset volume level for the other ear
-                thresholdFound = false;
-                Log.d("TestThresholdActivity", "Switching to the other ear: " + currentEar);
-                runTestSequence(); // Ensure the test continues for the other ear immediately
-            }
-        } else {
-            runTestSequence(); // Start the next test immediately
-        }
+        Log.d("TestThresholdActivity", "Test progress: " + progressPercentage + "%, Current frequency index: " + currentFrequencyIndex + ", Current ear index: " + currentEarIndex);
     }
 
     private void showResults() {
@@ -574,58 +567,39 @@ public class TestThresholdActivity extends AppCompatActivity {
         SharedPreferences sharedPreferences = getSharedPreferences("TestResults", MODE_PRIVATE);
         SharedPreferences.Editor editor = sharedPreferences.edit();
 
-        // Generate a unique key for this test
         String testKey = String.valueOf(System.currentTimeMillis());
 
-        // Log the generated test key
-        Log.d("TestThresholdActivity", "Generated testKey: " + testKey);
-
-        // Store group name, patient name, test type
         editor.putString(testKey + "_group_name", patientGroup);
         editor.putString(testKey + "_patient_name", patientName);
         editor.putString(testKey + "_test_type", testTypeThreshold);
 
-        // Log the frequencies and thresholds being saved
-        Log.d("TestThresholdActivity", "Saving test data for frequencies: " + Arrays.toString(frequencies));
-        Log.d("TestThresholdActivity", "Left thresholds: " + leftEarThresholds.toString());
-        Log.d("TestThresholdActivity", "Right thresholds: " + rightEarThresholds.toString());
-        Log.d("TestThresholdActivity", "Test counts: " + testCounts.toString());
-
-        // Store only conducted frequencies and their corresponding thresholds
         for (int i = 0; i < frequencies.length; i++) {
             String frequency = frequencies[i];
 
-            // Ensure we do not access an index out of bounds
-            int leftThreshold = (i < leftEarThresholds.size()) ? leftEarThresholds.get(i) : -1;
-            int rightThreshold = (i < rightEarThresholds.size()) ? rightEarThresholds.get(i) : -1;
+            for (int j = 0; j < ears.length; j++) {
+                // Skip the ear that wasn't tested for single-ear tests
+                if ((earOrder.equalsIgnoreCase(getString(R.string.lear_only)) && j == 1) ||
+                        (earOrder.equalsIgnoreCase(getString(R.string.rear_only)) && j == 0)) {
+                    continue;
+                }
 
-            String frequencyKeyLeft = testKey + "_" + frequency + "_left";
-            String frequencyKeyRight = testKey + "_" + frequency + "_right";
+                String ear = ears[j];
+                String frequencyKey = testKey + "_" + frequency + "_" + ear;
+                int threshold = (j == 0 && i < leftEarThresholds.size()) ? leftEarThresholds.get(i) :
+                        (j == 1 && i < rightEarThresholds.size()) ? rightEarThresholds.get(i) : -1;
 
-            Log.d("TestThresholdActivity", "Checking frequency: " + frequency + " with leftThreshold: " + leftThreshold + " and rightThreshold: " + rightThreshold);
+                editor.putInt(frequencyKey, threshold);
+                Log.d("TestThresholdActivity", "Saving threshold for key: " + frequencyKey + " = " + threshold);
 
-            if (leftThreshold != -1) {
-                editor.putInt(frequencyKeyLeft, leftThreshold);
-                Log.d("TestThresholdActivity", "Saving left threshold for key: " + frequencyKeyLeft + " = " + leftThreshold);
-            }
-            if (rightThreshold != -1) {
-                editor.putInt(frequencyKeyRight, rightThreshold);
-                Log.d("TestThresholdActivity", "Saving right threshold for key: " + frequencyKeyRight + " = " + rightThreshold);
-            }
-
-            // Save test counts only if tests were conducted
-            if (testCounts.containsKey(i + " left")) {
-                editor.putString(frequencyKeyLeft + "_testCounts", testCounts.get(i + " left").toString());
-                Log.d("TestActualActivity", "Saving test counts for key: " + frequencyKeyLeft + "_testCounts" + ": " + testCounts.get(i + " left").toString());
-            }
-
-            if (testCounts.containsKey(i + " right")) {
-                editor.putString(frequencyKeyRight + "_testCounts", testCounts.get(i + " right").toString());
-                Log.d("TestActualActivity", "Saving test counts for key: " + frequencyKeyRight + "_testCounts" + ": " + testCounts.get(i + " right").toString());
+                String testCountKey = i + " " + j;
+                if (testCounts.containsKey(testCountKey)) {
+                    editor.putString(frequencyKey + "_testCounts", testCounts.get(testCountKey).toString());
+                    Log.d("TestThresholdActivity", "Saving test counts for key: " + frequencyKey + "_testCounts" + ": " + testCounts.get(testCountKey).toString());
+                }
             }
         }
 
-        editor.apply(); // Save changes
+        editor.apply();
         Log.d("TestThresholdActivity", "SharedPreferences saved: " + sharedPreferences.getAll().toString());
     }
 

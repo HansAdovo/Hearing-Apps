@@ -189,76 +189,55 @@ public class ViewResultsActivity extends AppCompatActivity {
         GraphView leftEarGraph = findViewById(R.id.leftEarGraph);
         GraphView rightEarGraph = findViewById(R.id.rightEarGraph);
 
-        DataPoint[] leftEarDataPoints = new DataPoint[testResult.getLeftEarTestCounts().size()];
-        for (int i = 0; i < testResult.getLeftEarTestCounts().size(); i++) {
-            leftEarDataPoints[i] = new DataPoint(i, testResult.getLeftEarTestCounts().get(i));
+        updateSingleGraph(leftEarGraph, testResult.getLeftEarTestCounts(), getString(R.string.left_ear_graph_title), testResult.getTestType(), testResult.getTestGroup());
+        updateSingleGraph(rightEarGraph, testResult.getRightEarTestCounts(), getString(R.string.right_ear_graph_title), testResult.getTestType(), testResult.getTestGroup());
+    }
+
+    private void updateSingleGraph(GraphView graph, List<Integer> testCounts, String titleFormat, String testType, String testGroup) {
+        graph.removeAllSeries();
+
+        DataPoint[] dataPoints;
+        if (testCounts.size() == 1) {
+            // If there's only one point, create two points to show a horizontal line
+            dataPoints = new DataPoint[]{
+                    new DataPoint(0, testCounts.get(0)),
+                    new DataPoint(1, testCounts.get(0))
+            };
+        } else {
+            dataPoints = new DataPoint[testCounts.size()];
+            for (int i = 0; i < testCounts.size(); i++) {
+                dataPoints[i] = new DataPoint(i, testCounts.get(i));
+            }
         }
 
-        DataPoint[] rightEarDataPoints = new DataPoint[testResult.getRightEarTestCounts().size()];
-        for (int i = 0; i < testResult.getRightEarTestCounts().size(); i++) {
-            rightEarDataPoints[i] = new DataPoint(i, testResult.getRightEarTestCounts().get(i));
-        }
+        LineGraphSeries<DataPoint> series = new LineGraphSeries<>(dataPoints);
+        series.setDrawDataPoints(true);
+        series.setDataPointsRadius(10);
+        series.setThickness(5);
 
-        LineGraphSeries<DataPoint> leftEarSeries = new LineGraphSeries<>(leftEarDataPoints);
-        leftEarSeries.setDrawDataPoints(true);
-        leftEarSeries.setDataPointsRadius(10);
-        leftEarSeries.setThickness(5);
-
-        LineGraphSeries<DataPoint> rightEarSeries = new LineGraphSeries<>(rightEarDataPoints);
-        rightEarSeries.setDrawDataPoints(true);
-        rightEarSeries.setDataPointsRadius(10);
-        rightEarSeries.setThickness(5);
-
-        PointsGraphSeries<DataPoint> leftEarPoints = new PointsGraphSeries<>(leftEarDataPoints);
-        PointsGraphSeries<DataPoint> rightEarPoints = new PointsGraphSeries<>(rightEarDataPoints);
-
-        leftEarPoints.setCustomShape((canvas, paint, x, y, dataPoint) -> {
+        PointsGraphSeries<DataPoint> points = new PointsGraphSeries<>(dataPoints);
+        points.setCustomShape((canvas, paint, x, y, dataPoint) -> {
             paint.setColor(Color.BLACK);
             paint.setTextSize(30);
             paint.setTextAlign(Paint.Align.CENTER);
             canvas.drawText(String.format("%.0f", dataPoint.getY()), x, y - 20, paint);
         });
 
-        rightEarPoints.setCustomShape((canvas, paint, x, y, dataPoint) -> {
-            paint.setColor(Color.BLACK);
-            paint.setTextSize(30);
-            paint.setTextAlign(Paint.Align.CENTER);
-            canvas.drawText(String.format("%.0f", dataPoint.getY()), x, y - 20, paint);
-        });
+        graph.addSeries(series);
+        graph.addSeries(points);
+        graph.setTitle(String.format(titleFormat, testType, testGroup));
+        graph.getGridLabelRenderer().setHorizontalAxisTitle(getString(R.string.axis_test_instance));
+        graph.getGridLabelRenderer().setVerticalAxisTitle(getString(R.string.axis_volume_level_db));
 
-        leftEarGraph.removeAllSeries();
-        leftEarGraph.addSeries(leftEarSeries);
-        leftEarGraph.addSeries(leftEarPoints);
-        leftEarGraph.setTitle(String.format(getString(R.string.left_ear_graph_title), testResult.getTestType(), testResult.getTestGroup()));
-        leftEarGraph.getGridLabelRenderer().setHorizontalAxisTitle(getString(R.string.axis_test_instance));
-        leftEarGraph.getGridLabelRenderer().setVerticalAxisTitle(getString(R.string.axis_volume_level_db));
-
-        rightEarGraph.removeAllSeries();
-        rightEarGraph.addSeries(rightEarSeries);
-        rightEarGraph.addSeries(rightEarPoints);
-        rightEarGraph.setTitle(String.format(getString(R.string.right_ear_graph_title), testResult.getTestType(), testResult.getTestGroup()));
-        rightEarGraph.getGridLabelRenderer().setHorizontalAxisTitle(getString(R.string.axis_test_instance));
-        rightEarGraph.getGridLabelRenderer().setVerticalAxisTitle(getString(R.string.axis_volume_level_db));
-
-        // Adjust the viewport to ensure the entire graph is visible
-        if (leftEarDataPoints.length > 0) {
-            leftEarGraph.getViewport().setMinX(leftEarDataPoints[0].getX());
-            leftEarGraph.getViewport().setMaxX(leftEarDataPoints[leftEarDataPoints.length - 1].getX());
-            leftEarGraph.getViewport().setXAxisBoundsManual(true);
-        }
-
-        if (rightEarDataPoints.length > 0) {
-            rightEarGraph.getViewport().setMinX(rightEarDataPoints[0].getX());
-            rightEarGraph.getViewport().setMaxX(rightEarDataPoints[rightEarDataPoints.length - 1].getX());
-            rightEarGraph.getViewport().setXAxisBoundsManual(true);
-        }
+        // Adjust the viewport
+        graph.getViewport().setMinX(0);
+        graph.getViewport().setMaxX(Math.max(1, dataPoints.length - 1));
+        graph.getViewport().setXAxisBoundsManual(true);
 
         // Add data point tap listener for toast messages
-        leftEarSeries.setOnDataPointTapListener((series, dataPoint) -> {
-            Toast.makeText(ViewResultsActivity.this, "Left Ear: " + dataPoint.getY() + " dB", Toast.LENGTH_SHORT).show();
-        });
-        rightEarSeries.setOnDataPointTapListener((series, dataPoint) -> {
-            Toast.makeText(ViewResultsActivity.this, "Right Ear: " + dataPoint.getY() + " dB", Toast.LENGTH_SHORT).show();
+        series.setOnDataPointTapListener((s, dataPoint) -> {
+            String ear = titleFormat.contains("Left") ? "Left" : "Right";
+            Toast.makeText(ViewResultsActivity.this, ear + " Ear: " + dataPoint.getY() + " dB", Toast.LENGTH_SHORT).show();
         });
     }
 
