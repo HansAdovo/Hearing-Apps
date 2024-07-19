@@ -14,7 +14,12 @@ MAX_PLOT_SIZE = CHUNK * 50
 
 # WDRC parameters for each frequency band to make the audio output more clear
 # This is a technique used to make quiet sounds louder and loud sounds softer, making the overall volume more comfortable and easier to hear.
-wdrc_params = {'threshold': -30, 'ratio': 3.0, 'attack_time': 0.01, 'release_time': 0.1, 'gain': 10}
+wdrc_params = {
+    'low': {'threshold': -40, 'ratio': 3.0, 'attack_time': 0.01, 'release_time': 0.1, 'gain': 10},
+    'mid_low': {'threshold': -35, 'ratio': 3.5, 'attack_time': 0.01, 'release_time': 0.1, 'gain': 10},
+    'mid_high': {'threshold': -30, 'ratio': 4.0, 'attack_time': 0.01, 'release_time': 0.1, 'gain': 10},
+    'high': {'threshold': -25, 'ratio': 4.5, 'attack_time': 0.01, 'release_time': 0.1, 'gain': 10}
+}
 
 # Initialize PyAudio
 audio = pyaudio.PyAudio()
@@ -113,6 +118,27 @@ def wdrc(data, threshold, ratio, attack, release, gain, fs):
         output[i] = gainLinear * gain * data[i]
     return output
 
+def processWDRC(data, fs, wdrc_params):
+    # Split into frequency bands
+    # This is done to apply WDRC to each frequency band separately
+    low = bandPassFilter(data, 20, 300, fs) # Adjusted lowcut to 20 to fit within Nyquist frequency
+    mid_low = bandPassFilter(data, 300, 1000, fs) # Adjusted highcut to 1000 to fit within Nyquist frequency
+    mid_high = bandPassFilter(data, 1000, 3000, fs) # Adjusted highcut to 3000 to fit within Nyquist frequency
+    high = bandPassFilter(data, 3000, 6000, fs) # Adjusted highcut to 6000 to fit within Nyquist frequency
+    
+    # Apply WDRC to each band separately
+    # This is done to make the audio output more clear and comfortable to hear
+    # removes noise from the audio signal from each frequency band
+    low = wdrc(low, wdrc_params['low']['threshold'], wdrc_params['low']['ratio'], wdrc_params['low']['attack_time'], wdrc_params['low']['release_time'], wdrc_params['low']['gain'], fs)
+    mid_low = wdrc(mid_low, wdrc_params['mid_low']['threshold'], wdrc_params['mid_low']['ratio'], wdrc_params['mid_low']['attack_time'], wdrc_params['mid_low']['release_time'], wdrc_params['mid_low']['gain'], fs)
+    mid_high = wdrc(mid_high, wdrc_params['mid_high']['threshold'], wdrc_params['mid_high']['ratio'], wdrc_params['mid_high']['attack_time'], wdrc_params['mid_high']['release_time'], wdrc_params['mid_high']['gain'], fs)
+    high = wdrc(high, wdrc_params['high']['threshold'], wdrc_params['high']['ratio'], wdrc_params['high']['attack_time'], wdrc_params['high']['release_time'], wdrc_params['high']['gain'], fs)
+    
+    # Combine bands and return the processed audio
+    processed_data = low + mid_low + mid_high + high
+
+    return processed_data
+
 # This function is called periodically from the timer to update the plots and also the audio output
 def update():
     global stream, audio, output_stream
@@ -123,7 +149,9 @@ def update():
     audio = np.append(audio, dataSample)
     
     # Apply butter-worth bandpass filter to the audio data
-    dataSample = bandPassFilter(dataSample, 20, 6000, RATE, order=5)
+    #dataSample = bandPassFilter(dataSample, 20, 6000, RATE, order=5)
+
+    dataSample = processWDRC(dataSample, RATE, wdrc_params)
 
     # Apply the WDRC
     #dataSample = wdrc(dataSample, wdrc_params['threshold'], wdrc_params['ratio'], wdrc_params['attack_time'], wdrc_params['release_time'], wdrc_params['gain'], RATE)
