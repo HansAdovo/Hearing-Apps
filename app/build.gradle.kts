@@ -3,15 +3,15 @@ plugins {
 }
 
 android {
-    namespace = "com.example.frontendhearingampapp"
+    namespace = "com.auditapp.hearingamp"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.example.frontendhearingampapp"
+        applicationId = "com.auditapp.hearingamp"
         minSdk = 21
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
