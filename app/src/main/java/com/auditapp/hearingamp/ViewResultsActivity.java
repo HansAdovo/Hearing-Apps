@@ -1,4 +1,4 @@
-package com.example.frontendhearingampapp;
+package com.auditapp.hearingamp;
 
 import android.annotation.SuppressLint;
 import android.content.Intent;

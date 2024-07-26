@@ -15,40 +15,41 @@
 
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:configChanges="locale|layoutDirection">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <!-- Test Activity -->
         <activity android:name=".TestActivity"
-            android:exported="true" />
+            android:exported="true"
+            android:configChanges="locale|layoutDirection" />
 
-        <!-- Calibration Activity -->
         <activity android:name=".CalibrationActivity"
-            android:exported="true" />
+            android:exported="true"
+            android:configChanges="locale|layoutDirection" />
 
-        <!-- View Results Activity -->
         <activity android:name=".ViewResultsActivity"
-            android:exported="true" />
+            android:exported="true"
+            android:configChanges="locale|layoutDirection" />
 
-        <!-- Test Threshold Instruction Activity -->
         <activity android:name=".TestThresholdInstructionActivity"
-            android:exported="true" />
+            android:exported="true"
+            android:configChanges="locale|layoutDirection" />
 
-        <!-- Test Threshold Activity -->
         <activity android:name=".TestThresholdActivity"
-            android:exported="true" />
+            android:exported="true"
+            android:configChanges="locale|layoutDirection" />
 
-        <!-- Test MCL Instruction Activity -->
         <activity android:name=".TestMCLInstructionActivity"
-            android:exported="true" />
+            android:exported="true"
+            android:configChanges="locale|layoutDirection" />
 
-        <!-- Test MCL Activity -->
         <activity android:name=".TestMCLActivity"
-            android:exported="true" />
+            android:exported="true"
+            android:configChanges="locale|layoutDirection" />
 
     </application>
 
