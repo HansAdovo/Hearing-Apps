@@ -1,4 +1,4 @@
-package com.example.frontendhearingampapp;
+package com.example.hearingamp;
 
 import android.content.Context;
 

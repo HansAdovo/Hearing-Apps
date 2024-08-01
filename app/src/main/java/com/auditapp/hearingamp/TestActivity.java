@@ -1,4 +1,4 @@
-package com.example.frontendhearingampapp;
+package com.auditapp.hearingamp;
 
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -41,7 +41,6 @@ public class TestActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        LocaleManager.loadLocale(this);  // Load the current locale
         setContentView(R.layout.activity_test);
 
         prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);

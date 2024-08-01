@@ -1,4 +1,4 @@
-package com.example.frontendhearingampapp;
+package com.auditapp.hearingamp;
 
 import android.content.SharedPreferences;
 import android.media.AudioAttributes;
@@ -54,7 +54,6 @@ public class CalibrationActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        LocaleManager.loadLocale(this);
         setContentView(R.layout.activity_calibration);
 
         initViews();
@@ -121,11 +120,6 @@ public class CalibrationActivity extends AppCompatActivity {
     }
 
     private synchronized void handlePlayButtonClick(int index) {
-        if (currentSettingName.isEmpty()) {
-            Toast.makeText(this, R.string.no_calibration_setting_selected, Toast.LENGTH_SHORT).show();
-            return;
-        }
-
         if (currentlyPlayingIndex == index) {
             stopTone(index);
             playButtons[index].setImageResource(android.R.drawable.ic_media_play);
@@ -212,6 +206,7 @@ public class CalibrationActivity extends AppCompatActivity {
         Toast.makeText(this, R.string.setting_saved, Toast.LENGTH_SHORT).show();
 
         currentSettingTextView.setText(String.format(getString(R.string.current_setting), currentSettingName));
+        updatePlayButtonsState(); // Enable play buttons after saving
     }
 
     private void calculateDesiredSPLLevels() {
@@ -339,7 +334,8 @@ public class CalibrationActivity extends AppCompatActivity {
             int finalI = i;
             expectedLevelEdits[i].addTextChangedListener(new TextWatcher() {
                 @Override
-                public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+                public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+                }
 
                 @Override
                 public void onTextChanged(CharSequence s, int start, int before, int count) {
@@ -349,12 +345,14 @@ public class CalibrationActivity extends AppCompatActivity {
                 }
 
                 @Override
-                public void afterTextChanged(Editable s) {}
+                public void afterTextChanged(Editable s) {
+                }
             });
 
             leftMeasuredLevelEdits[i].addTextChangedListener(new TextWatcher() {
                 @Override
-                public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+                public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+                }
 
                 @Override
                 public void onTextChanged(CharSequence s, int start, int before, int count) {
@@ -364,12 +362,14 @@ public class CalibrationActivity extends AppCompatActivity {
                 }
 
                 @Override
-                public void afterTextChanged(Editable s) {}
+                public void afterTextChanged(Editable s) {
+                }
             });
 
             rightMeasuredLevelEdits[i].addTextChangedListener(new TextWatcher() {
                 @Override
-                public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+                public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+                }
 
                 @Override
                 public void onTextChanged(CharSequence s, int start, int before, int count) {
@@ -379,39 +379,44 @@ public class CalibrationActivity extends AppCompatActivity {
                 }
 
                 @Override
-                public void afterTextChanged(Editable s) {}
+                public void afterTextChanged(Editable s) {
+                }
             });
         }
     }
 
     private void updateVolume(int index) {
+        double expectedLevel = parseDoubleOrDefault(expectedLevelEdits[index].getText().toString(), 0);
+        double leftMeasuredLevel = parseDoubleOrDefault(leftMeasuredLevelEdits[index].getText().toString(), 0);
+        double rightMeasuredLevel = parseDoubleOrDefault(rightMeasuredLevelEdits[index].getText().toString(), 0);
+
+        double leftCorrectionFactor = expectedLevel - leftMeasuredLevel;
+        double rightCorrectionFactor = expectedLevel - rightMeasuredLevel;
+
+        double leftDesiredDbSpl = expectedLevel + leftCorrectionFactor;
+        double rightDesiredDbSpl = expectedLevel + rightCorrectionFactor;
+
+        // Save the desired SPL levels for each ear separately
+        desiredSPLLevelsLeft[index] = (float) leftDesiredDbSpl;
+        desiredSPLLevelsRight[index] = (float) rightDesiredDbSpl;
+
+        Log.d(TAG, "updateVolume: index = " + index + ", expectedLevel = " + expectedLevel +
+                ", leftMeasuredLevel = " + leftMeasuredLevel + ", rightMeasuredLevel = " + rightMeasuredLevel);
+        Log.d(TAG, "updateVolume: leftDesiredDbSpl = " + leftDesiredDbSpl + ", rightDesiredDbSpl = " + rightDesiredDbSpl);
+
+        double leftAmplitude = calculateAmplitude(leftDesiredDbSpl, 100);
+        double rightAmplitude = calculateAmplitude(rightDesiredDbSpl, 100);
+
+        if (audioTracks[index] != null) {
+            audioTracks[index].setStereoVolume((float) leftAmplitude, (float) rightAmplitude);
+        }
+    }
+
+    private double parseDoubleOrDefault(String value, double defaultValue) {
         try {
-            double expectedLevel = Double.parseDouble(expectedLevelEdits[index].getText().toString());
-            double leftMeasuredLevel = Double.parseDouble(leftMeasuredLevelEdits[index].getText().toString());
-            double rightMeasuredLevel = Double.parseDouble(rightMeasuredLevelEdits[index].getText().toString());
-
-            double leftCorrectionFactor = expectedLevel - leftMeasuredLevel;
-            double rightCorrectionFactor = expectedLevel - rightMeasuredLevel;
-
-            double leftDesiredDbSpl = expectedLevel + leftCorrectionFactor;
-            double rightDesiredDbSpl = expectedLevel + rightCorrectionFactor;
-
-            // Save the desired SPL levels for each ear separately
-            desiredSPLLevelsLeft[index] = (float) leftDesiredDbSpl;
-            desiredSPLLevelsRight[index] = (float) rightDesiredDbSpl;
-
-            Log.d(TAG, "updateVolume: index = " + index + ", expectedLevel = " + expectedLevel +
-                    ", leftMeasuredLevel = " + leftMeasuredLevel + ", rightMeasuredLevel = " + rightMeasuredLevel);
-            Log.d(TAG, "updateVolume: leftDesiredDbSpl = " + leftDesiredDbSpl + ", rightDesiredDbSpl = " + rightDesiredDbSpl);
-
-            double leftAmplitude = calculateAmplitude(leftDesiredDbSpl, 100);
-            double rightAmplitude = calculateAmplitude(rightDesiredDbSpl, 100);
-
-            if (audioTracks[index] != null) {
-                audioTracks[index].setStereoVolume((float) leftAmplitude, (float) rightAmplitude);
-            }
+            return Double.parseDouble(value);
         } catch (NumberFormatException e) {
-            e.printStackTrace();
+            return defaultValue;
         }
     }
 
@@ -481,9 +486,8 @@ public class CalibrationActivity extends AppCompatActivity {
     }
 
     private void updatePlayButtonsState() {
-        boolean isEnabled = !currentSettingName.isEmpty();
         for (ImageButton playButton : playButtons) {
-            playButton.setEnabled(isEnabled);
+            playButton.setEnabled(true);
         }
     }
 }

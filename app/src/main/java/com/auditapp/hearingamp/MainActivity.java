@@ -1,4 +1,4 @@
-package com.example.frontendhearingampapp;
+package com.auditapp.hearingamp;
 
 import android.widget.Toast;
 import android.content.Context;
@@ -15,7 +15,6 @@ import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity {
 
-    private static final String[] LANGUAGES = {"English", "Spanish", "French"};
     private static final String[] LOCALES = {"en", "es-rES", "fr-rFR"};
     private TextView switchLanguageButton, appTitle;
     private Button testButton, calibrationButton, viewResultsButton;
