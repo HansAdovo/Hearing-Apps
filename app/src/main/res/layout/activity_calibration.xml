@@ -70,6 +70,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
+            android:textColor="#000000"
             android:text="@string/current_setting" />
 
         <!-- Presentation Level Set-->
@@ -77,6 +78,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
+            android:textColor="#000000"
             android:text="@string/presentation_level" />
 
         <!-- Adjust Level Set-->
@@ -84,6 +86,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
+            android:textColor="#000000"
             android:text="@string/adjust_level" />
 
         <!-- Column Headers -->
@@ -97,30 +100,35 @@
                 android:layout_width="1dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
                 android:text="@string/frequency" />
 
             <TextView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
                 android:text="@string/expected_level" />
 
             <TextView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
                 android:text="@string/left_measured_level" />
 
             <TextView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
                 android:text="@string/right_measured_level" />
 
             <TextView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
                 android:text="@string/play" />
 
         </LinearLayout>
@@ -138,6 +146,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
                 android:text="250 Hz" />
 
             <EditText
@@ -145,6 +154,8 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
+                android:backgroundTint="#000000"
                 android:inputType="numberDecimal" />
 
             <EditText
@@ -152,6 +163,8 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
+                android:backgroundTint="#000000"
                 android:inputType="numberDecimal" />
 
             <EditText
@@ -159,6 +172,8 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
+                android:backgroundTint="#000000"
                 android:inputType="numberDecimal" />
 
             <ImageButton
@@ -182,6 +197,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
                 android:text="500 Hz" />
 
             <EditText
@@ -189,6 +205,8 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
+                android:backgroundTint="#000000"
                 android:inputType="numberDecimal" />
 
             <EditText
@@ -196,6 +214,8 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
+                android:backgroundTint="#000000"
                 android:inputType="numberDecimal" />
 
             <EditText
@@ -203,6 +223,8 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
+                android:backgroundTint="#000000"
                 android:inputType="numberDecimal" />
 
             <ImageButton
@@ -225,6 +247,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
                 android:text="750 Hz" />
 
             <EditText
@@ -232,6 +255,8 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
+                android:backgroundTint="#000000"
                 android:inputType="numberDecimal" />
 
             <EditText
@@ -239,6 +264,8 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
+                android:backgroundTint="#000000"
                 android:inputType="numberDecimal" />
 
             <EditText
@@ -246,6 +273,8 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
+                android:backgroundTint="#000000"
                 android:inputType="numberDecimal" />
 
             <ImageButton
@@ -269,6 +298,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
                 android:text="1000 Hz" />
 
             <EditText
@@ -276,6 +306,8 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
+                android:backgroundTint="#000000"
                 android:inputType="numberDecimal" />
 
             <EditText
@@ -283,6 +315,8 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
+                android:backgroundTint="#000000"
                 android:inputType="numberDecimal" />
 
             <EditText
@@ -290,6 +324,8 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
+                android:backgroundTint="#000000"
                 android:inputType="numberDecimal" />
 
             <ImageButton
@@ -312,6 +348,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
                 android:text="1500 Hz" />
 
             <EditText
@@ -319,6 +356,8 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
+                android:backgroundTint="#000000"
                 android:inputType="numberDecimal" />
 
             <EditText
@@ -326,6 +365,8 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
+                android:backgroundTint="#000000"
                 android:inputType="numberDecimal" />
 
             <EditText
@@ -333,6 +374,8 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
+                android:backgroundTint="#000000"
                 android:inputType="numberDecimal" />
 
             <ImageButton
@@ -356,6 +399,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
                 android:text="2000 Hz" />
 
             <EditText
@@ -363,6 +407,8 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
+                android:backgroundTint="#000000"
                 android:inputType="numberDecimal" />
 
             <EditText
@@ -370,6 +416,8 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
+                android:backgroundTint="#000000"
                 android:inputType="numberDecimal" />
 
             <EditText
@@ -377,6 +425,8 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
+                android:backgroundTint="#000000"
                 android:inputType="numberDecimal" />
 
             <ImageButton
@@ -399,6 +449,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
                 android:text="3000 Hz" />
 
             <EditText
@@ -406,6 +457,8 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
+                android:backgroundTint="#000000"
                 android:inputType="numberDecimal" />
 
             <EditText
@@ -413,6 +466,8 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
+                android:backgroundTint="#000000"
                 android:inputType="numberDecimal" />
 
             <EditText
@@ -420,6 +475,8 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
+                android:backgroundTint="#000000"
                 android:inputType="numberDecimal" />
 
             <ImageButton
@@ -442,6 +499,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
                 android:text="4000 Hz" />
 
             <EditText
@@ -449,6 +507,8 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
+                android:backgroundTint="#000000"
                 android:inputType="numberDecimal" />
 
             <EditText
@@ -456,6 +516,8 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
+                android:backgroundTint="#000000"
                 android:inputType="numberDecimal" />
 
             <EditText
@@ -463,6 +525,8 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
+                android:backgroundTint="#000000"
                 android:inputType="numberDecimal" />
 
             <ImageButton
@@ -485,6 +549,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
                 android:text="6000 Hz" />
 
             <EditText
@@ -492,6 +557,8 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
+                android:backgroundTint="#000000"
                 android:inputType="numberDecimal" />
 
             <EditText
@@ -499,6 +566,8 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
+                android:backgroundTint="#000000"
                 android:inputType="numberDecimal" />
 
             <EditText
@@ -506,6 +575,8 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
+                android:backgroundTint="#000000"
                 android:inputType="numberDecimal" />
 
             <ImageButton
@@ -528,6 +599,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
                 android:text="8000 Hz" />
 
             <EditText
@@ -535,6 +607,8 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
+                android:backgroundTint="#000000"
                 android:inputType="numberDecimal" />
 
             <EditText
@@ -542,6 +616,8 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
+                android:backgroundTint="#000000"
                 android:inputType="numberDecimal" />
 
             <EditText
@@ -549,6 +625,8 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:textColor="#000000"
+                android:backgroundTint="#000000"
                 android:inputType="numberDecimal" />
 
             <ImageButton

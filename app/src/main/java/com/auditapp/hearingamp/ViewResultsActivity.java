@@ -198,7 +198,6 @@ public class ViewResultsActivity extends AppCompatActivity {
 
         DataPoint[] dataPoints;
         if (testCounts.size() == 1) {
-            // If there's only one point, create two points to show a horizontal line
             dataPoints = new DataPoint[]{
                     new DataPoint(0, testCounts.get(0)),
                     new DataPoint(1, testCounts.get(0))
@@ -211,11 +210,13 @@ public class ViewResultsActivity extends AppCompatActivity {
         }
 
         LineGraphSeries<DataPoint> series = new LineGraphSeries<>(dataPoints);
+        series.setColor(Color.BLUE);
         series.setDrawDataPoints(true);
         series.setDataPointsRadius(10);
         series.setThickness(5);
 
         PointsGraphSeries<DataPoint> points = new PointsGraphSeries<>(dataPoints);
+        points.setColor(Color.BLUE);
         points.setCustomShape((canvas, paint, x, y, dataPoint) -> {
             paint.setColor(Color.BLACK);
             paint.setTextSize(30);
@@ -226,15 +227,40 @@ public class ViewResultsActivity extends AppCompatActivity {
         graph.addSeries(series);
         graph.addSeries(points);
         graph.setTitle(String.format(titleFormat, testType, testGroup));
+
+        // Configure grid label renderer
         graph.getGridLabelRenderer().setHorizontalAxisTitle(getString(R.string.axis_test_instance));
         graph.getGridLabelRenderer().setVerticalAxisTitle(getString(R.string.axis_volume_level_db));
+        graph.getGridLabelRenderer().setHorizontalLabelsColor(Color.BLACK);
+        graph.getGridLabelRenderer().setVerticalLabelsColor(Color.BLACK);
+        graph.getGridLabelRenderer().setHorizontalAxisTitleColor(Color.BLACK);
+        graph.getGridLabelRenderer().setVerticalAxisTitleColor(Color.BLACK);
+        graph.getGridLabelRenderer().setGridColor(Color.LTGRAY);
+        graph.getGridLabelRenderer().setHighlightZeroLines(true);
 
-        // Adjust the viewport
+        // Set title color
+        graph.setTitleColor(Color.BLACK);
+
+        // Configure viewport
         graph.getViewport().setMinX(0);
         graph.getViewport().setMaxX(Math.max(1, dataPoints.length - 1));
         graph.getViewport().setXAxisBoundsManual(true);
+        graph.getViewport().setScalable(true);
+        graph.getViewport().setScrollable(true);
 
-        // Add data point tap listener for toast messages
+        // Find min and max Y values
+        int minY = Integer.MAX_VALUE;
+        int maxY = Integer.MIN_VALUE;
+        for (DataPoint dp : dataPoints) {
+            minY = Math.min(minY, (int) dp.getY());
+            maxY = Math.max(maxY, (int) dp.getY());
+        }
+
+        // Set Y axis bounds with some padding
+        graph.getViewport().setMinY(Math.max(0, minY - 10));
+        graph.getViewport().setMaxY(maxY + 10);
+        graph.getViewport().setYAxisBoundsManual(true);
+
         series.setOnDataPointTapListener((s, dataPoint) -> {
             String ear = titleFormat.contains("Left") ? "Left" : "Right";
             Toast.makeText(ViewResultsActivity.this, ear + " Ear: " + dataPoint.getY() + " dB", Toast.LENGTH_SHORT).show();
