@@ -3,6 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
+    android:background="#FFFFFF"
     tools:context=".ViewResultsActivity">
 
     <Button
@@ -15,33 +16,41 @@
         android:id="@+id/tvCurrentFrequency"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:textColor="#000000"
         android:text="@string/current_frequency" />
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:textColor="#000000"
         android:text="@string/left_ear" />
 
     <com.jjoe64.graphview.GraphView
         android:id="@+id/leftEarGraph"
         android:layout_width="match_parent"
-        android:layout_height="200dp" />
+        android:layout_height="200dp"
+        android:background="#FFFFFF" />
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:textColor="#000000"
         android:text="@string/right_ear" />
 
     <com.jjoe64.graphview.GraphView
         android:id="@+id/rightEarGraph"
         android:layout_width="match_parent"
-        android:layout_height="200dp" />
+        android:layout_height="200dp"
+        android:background="#FFFFFF" />
 
     <ExpandableListView
         android:id="@+id/expandableListView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1" />
+        android:layout_weight="1"
+        android:childDivider="#CCCCCC"
+        android:divider="#AAAAAA"
+        android:dividerHeight="0.5dp" />
 
     <Button
         android:id="@+id/btnExportAllPatientData"
