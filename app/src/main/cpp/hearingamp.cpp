@@ -5,13 +5,15 @@
 #include <algorithm>
 #include <oboe/Oboe.h>
 #include <android/log.h>
+#include <mutex>
 
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "hearingamp", __VA_ARGS__)
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, "hearingamp", __VA_ARGS__)
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "hearingamp", __VA_ARGS__)
 
-constexpr int SAMPLE_RATE = 48000;
-constexpr int CHANNEL_COUNT = 2;
-constexpr int FRAMES_PER_CALLBACK = 192;  // A smaller value for lower latency
+constexpr int DEFAULT_SAMPLE_RATE = 48000;
+constexpr int DEFAULT_CHANNEL_COUNT = 2;
+constexpr int FRAMES_PER_CALLBACK = 384;
 
 struct WDRCParams {
     float threshold;
@@ -22,32 +24,74 @@ struct WDRCParams {
 };
 
 std::vector<WDRCParams> wdrc_params = {
-        {-50, 2.0f, 0.005f, 0.05f, 5},  // low
-        {-45, 2.5f, 0.005f, 0.05f, 5},  // mid_low
-        {-40, 3.0f, 0.005f, 0.05f, 5},  // mid_high
-        {-35, 3.5f, 0.005f, 0.05f, 5}   // high
+        {-40, 1.5f, 0.010f, 0.100f, 3},  // low
+        {-35, 2.0f, 0.010f, 0.100f, 3},  // mid_low
+        {-30, 2.5f, 0.010f, 0.100f, 3},  // mid_high
+        {-25, 3.0f, 0.010f, 0.100f, 3}   // high
+};
+
+class CircularBuffer {
+public:
+    CircularBuffer(size_t capacity) : mCapacity(capacity), mSize(0), mHead(0), mTail(0) {
+        mBuffer.resize(capacity);
+    }
+
+    void push(float value) {
+        mBuffer[mTail] = value;
+        mTail = (mTail + 1) % mCapacity;
+        if (mSize < mCapacity) {
+            mSize++;
+        } else {
+            mHead = (mHead + 1) % mCapacity;
+        }
+    }
+
+    float pop() {
+        if (mSize == 0) return 0.0f;
+        float value = mBuffer[mHead];
+        mHead = (mHead + 1) % mCapacity;
+        mSize--;
+        return value;
+    }
+
+    size_t size() const { return mSize; }
+    bool empty() const { return mSize == 0; }
+    void clear() { mSize = 0; mHead = 0; mTail = 0; }
+
+private:
+    std::vector<float> mBuffer;
+    size_t mCapacity;
+    size_t mSize;
+    size_t mHead;
+    size_t mTail;
 };
 
 class HearingAmpEngine : public oboe::AudioStreamCallback {
 public:
-    oboe::DataCallbackResult onAudioReady(oboe::AudioStream *stream, void *audioData, int32_t numFrames) override {
-        if (stream->getDirection() == oboe::Direction::Input) {
-            LOGD("Processing %d input frames", numFrames);
-            float *inputData = static_cast<float*>(audioData);
-            processAudio(inputData, numFrames);
+    HearingAmpEngine() : mProcessedBuffer(FRAMES_PER_CALLBACK * DEFAULT_CHANNEL_COUNT * 4) {}
 
-            if (mProcessedBuffer.size() < numFrames * CHANNEL_COUNT) {
-                mProcessedBuffer.resize(numFrames * CHANNEL_COUNT);
+    oboe::DataCallbackResult onAudioReady(oboe::AudioStream *stream, void *audioData, int32_t numFrames) override {
+        int32_t channelCount = stream->getChannelCount();
+
+        if (stream->getDirection() == oboe::Direction::Input) {
+            float *inputData = static_cast<float*>(audioData);
+            int nonZeroSamples = processAudio(inputData, numFrames, channelCount);
+            LOGD("Processed %d input frames, %d non-zero samples", numFrames, nonZeroSamples);
+
+            std::lock_guard<std::mutex> lock(mBufferMutex);
+            for (int i = 0; i < numFrames * channelCount; ++i) {
+                mProcessedBuffer.push(inputData[i]);
             }
-            std::copy(inputData, inputData + numFrames * CHANNEL_COUNT, mProcessedBuffer.begin());
         } else if (stream->getDirection() == oboe::Direction::Output) {
-            LOGD("Filling %d output frames", numFrames);
             float *outputData = static_cast<float*>(audioData);
-            if (mProcessedBuffer.size() >= numFrames * CHANNEL_COUNT) {
-                std::copy(mProcessedBuffer.begin(), mProcessedBuffer.begin() + numFrames * CHANNEL_COUNT, outputData);
+            std::lock_guard<std::mutex> lock(mBufferMutex);
+            if (mProcessedBuffer.size() >= numFrames * channelCount) {
+                for (int i = 0; i < numFrames * channelCount; ++i) {
+                    outputData[i] = mProcessedBuffer.pop();
+                }
             } else {
-                LOGD("Not enough processed data, filling with zeros");
-                std::fill(outputData, outputData + numFrames * CHANNEL_COUNT, 0.0f);
+                LOGD("Buffer underrun: %zu samples available, %d needed", mProcessedBuffer.size(), numFrames * channelCount);
+                std::fill(outputData, outputData + numFrames * channelCount, 0.0f);
             }
         }
 
@@ -64,25 +108,51 @@ public:
 
 private:
     std::vector<float> envelopes = std::vector<float>(wdrc_params.size(), 0.0f);
-    std::vector<float> mProcessedBuffer;
-    float noiseGateThreshold = 0.005f;
+    CircularBuffer mProcessedBuffer;
+    std::mutex mBufferMutex;
+    float noiseGateThreshold = 0.01f;
+    float noiseGateKnee = 0.005f;
+    float prevOutputLeft = 0.0f, prevOutputRight = 0.0f;
 
-    void processAudio(float* data, int32_t numFrames) {
+    int processAudio(float* data, int32_t numFrames, int32_t channelCount) {
+        if (data == nullptr) {
+            LOGE("Null audio data received");
+            return 0;
+        }
+
         int nonZeroSamples = 0;
-        for (int i = 0; i < numFrames * CHANNEL_COUNT; ++i) {
+        for (int i = 0; i < numFrames * channelCount; ++i) {
             float sample = data[i];
 
-            // Apply noise gate
-            if (std::abs(sample) < noiseGateThreshold) {
-                sample = 0.0f;
-            } else {
-                sample = applyWDRC(sample);
+            if (std::abs(sample) > 1e-6) {
                 nonZeroSamples++;
             }
 
-            data[i] = std::clamp(sample, -1.0f, 1.0f);
+            // Apply noise gate with soft knee
+            if (std::abs(sample) < noiseGateThreshold - noiseGateKnee) {
+                sample = 0.0f;
+            } else if (std::abs(sample) < noiseGateThreshold + noiseGateKnee) {
+                float factor = (std::abs(sample) - (noiseGateThreshold - noiseGateKnee)) / (2 * noiseGateKnee);
+                sample *= factor;
+            }
+
+            if (sample != 0.0f) {
+                sample = applyWDRC(sample);
+            }
+
+            // Apply low-pass filter
+            if (i % channelCount == 0) {
+                sample = lowPassFilter(sample, prevOutputLeft);
+            } else {
+                sample = lowPassFilter(sample, prevOutputRight);
+            }
+
+            // Apply limiter
+            sample = limit(sample);
+
+            data[i] = sample;
         }
-        LOGD("Processed %d frames, %d non-zero samples", numFrames, nonZeroSamples);
+        return nonZeroSamples;
     }
 
     float applyWDRC(float sample) {
@@ -93,8 +163,8 @@ private:
             float thresholdLinear = std::pow(10, params.threshold / 20);
             float gainLinear = std::pow(10, params.gain / 20);
 
-            float alphaA = std::exp(-1.0f / (SAMPLE_RATE * params.attack_time));
-            float alphaR = std::exp(-1.0f / (SAMPLE_RATE * params.release_time));
+            float alphaA = std::exp(-1.0f / (DEFAULT_SAMPLE_RATE * params.attack_time));
+            float alphaR = std::exp(-1.0f / (DEFAULT_SAMPLE_RATE * params.release_time));
             float alpha = inputLevel > envelopes[i] ? alphaA : alphaR;
             envelopes[i] = alpha * envelopes[i] + (1.0f - alpha) * inputLevel;
 
@@ -106,6 +176,16 @@ private:
             output *= gainLinear * compressionGain;
         }
         return output;
+    }
+
+    float lowPassFilter(float input, float &prevOutput, float alpha = 0.1f) {
+        float output = alpha * input + (1 - alpha) * prevOutput;
+        prevOutput = output;
+        return output;
+    }
+
+    float limit(float sample, float threshold = 0.9f) {
+        return std::clamp(sample, -threshold, threshold);
     }
 };
 
@@ -124,10 +204,10 @@ Java_com_auditapp_hearingamp_AudioProcessingService_startAudioProcessing(JNIEnv 
     // Configure and open input stream
     builder.setDirection(oboe::Direction::Input)
             ->setPerformanceMode(oboe::PerformanceMode::LowLatency)
-            ->setSharingMode(oboe::SharingMode::Shared)  // Changed to Shared
+            ->setSharingMode(oboe::SharingMode::Shared)
             ->setFormat(oboe::AudioFormat::Float)
-            ->setChannelCount(CHANNEL_COUNT)
-            ->setSampleRate(SAMPLE_RATE)
+            ->setChannelCount(DEFAULT_CHANNEL_COUNT)
+            ->setSampleRate(DEFAULT_SAMPLE_RATE)
             ->setFramesPerCallback(FRAMES_PER_CALLBACK)
             ->setCallback(engine);
 
@@ -137,14 +217,25 @@ Java_com_auditapp_hearingamp_AudioProcessingService_startAudioProcessing(JNIEnv 
         return -1;
     }
 
+    LOGI("Input stream opened: SampleRate=%d, Channels=%d, Format=%d",
+         inputStream->getSampleRate(), inputStream->getChannelCount(),
+         static_cast<int>(inputStream->getFormat()));
+
     // Configure and open output stream
     builder.setDirection(oboe::Direction::Output)
+            ->setSampleRate(inputStream->getSampleRate())  // Match input sample rate
+            ->setChannelCount(inputStream->getChannelCount())  // Match input channel count
             ->setCallback(engine);
+
     result = builder.openStream(outputStream);
     if (result != oboe::Result::OK) {
         LOGE("Failed to open output stream. Error: %s", oboe::convertToText(result));
         return -1;
     }
+
+    LOGI("Output stream opened: SampleRate=%d, Channels=%d, Format=%d",
+         outputStream->getSampleRate(), outputStream->getChannelCount(),
+         static_cast<int>(outputStream->getFormat()));
 
     // Start the streams
     result = inputStream->requestStart();
