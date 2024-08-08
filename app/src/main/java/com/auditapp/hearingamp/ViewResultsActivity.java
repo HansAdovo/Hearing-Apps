@@ -49,6 +49,7 @@ public class ViewResultsActivity extends AppCompatActivity {
 
     @Override
     public void onBackPressed() {
+        super.onBackPressed();
         Intent intent = new Intent(ViewResultsActivity.this, MainActivity.class);
         startActivity(intent);
         finish(); // Finish the current activity

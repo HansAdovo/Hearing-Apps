@@ -1,16 +1,21 @@
 package com.auditapp.hearingamp;
 
+import android.Manifest;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.widget.Button;
 import android.widget.ToggleButton;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import android.util.Log;
 import android.widget.Toast;
 
 public class RealTimeAmplificationActivity extends AppCompatActivity {
 
     private static final String TAG = "RealTimeAmplification";
+    private static final int PERMISSION_REQUEST_RECORD_AUDIO = 1;
     private ToggleButton toggleAmplification;
     private Button btnReturnToTitle;
     private boolean isReturningToTitle = false;
@@ -25,7 +30,7 @@ public class RealTimeAmplificationActivity extends AppCompatActivity {
 
         toggleAmplification.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (isChecked) {
-                startAmplification();
+                checkAndRequestAudioPermission();
             } else {
                 stopAmplification();
             }
@@ -39,6 +44,30 @@ public class RealTimeAmplificationActivity extends AppCompatActivity {
             }
             finish();
         });
+    }
+
+    private void checkAndRequestAudioPermission() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+                != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.RECORD_AUDIO},
+                    PERMISSION_REQUEST_RECORD_AUDIO);
+        } else {
+            startAmplification();
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == PERMISSION_REQUEST_RECORD_AUDIO) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                startAmplification();
+            } else {
+                Toast.makeText(this, getString(R.string.microphone_permission_denied), Toast.LENGTH_SHORT).show();
+                toggleAmplification.setChecked(false);
+            }
+        }
     }
 
     private void startAmplification() {

@@ -97,4 +97,5 @@
     <string name="amplification_started">Amplificación comenzada</string>
     <string name="amplification_stopped">Amplificación detenida</string>
     <string name="error_starting_amplification">Error al iniciar la amplificación</string>
+    <string name="microphone_permission_denied">Permiso de micrófono denegado</string>
 </resources>
