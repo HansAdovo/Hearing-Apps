@@ -32,15 +32,16 @@ class HearingAmpEngine : public oboe::AudioStreamCallback {
 public:
     oboe::DataCallbackResult onAudioReady(oboe::AudioStream *stream, void *audioData, int32_t numFrames) override {
         if (stream->getDirection() == oboe::Direction::Input) {
-            // Process input audio
             float *inputData = static_cast<float*>(audioData);
             processAudio(inputData, numFrames);
 
             // Write processed audio to output stream
             if (mOutputStream) {
                 auto result = mOutputStream->write(inputData, numFrames, 0);
-                if (result != numFrames) {
-                    LOGE("Error writing to output stream. Wrote %d frames instead of %d", result, numFrames);
+                if (!result) {
+                    LOGE("Error writing to output stream: %s", oboe::convertToText(result.error()));
+                } else if (result.value() != numFrames) {
+                    LOGE("Error writing to output stream. Wrote %d frames instead of %d", result.value(), numFrames);
                 }
             }
         }
