@@ -60,7 +60,14 @@
             android:id="@+id/viewResultsButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="View Results" />
+            android:text="View Results"
+            android:layout_marginBottom="16dp" />
+
+        <Button
+            android:id="@+id/realTimeAmplificationButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Real-Time Amplification" />
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
