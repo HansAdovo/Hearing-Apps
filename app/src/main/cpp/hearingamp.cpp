@@ -11,7 +11,7 @@
 
 constexpr int SAMPLE_RATE = 48000;
 constexpr int CHANNEL_COUNT = 2;
-constexpr int BUFFER_SIZE = 480; // Reduced buffer size for lower latency
+constexpr int FRAMES_PER_CALLBACK = 192;  // A smaller value for lower latency
 
 struct WDRCParams {
     float threshold;
@@ -31,44 +31,58 @@ std::vector<WDRCParams> wdrc_params = {
 class HearingAmpEngine : public oboe::AudioStreamCallback {
 public:
     oboe::DataCallbackResult onAudioReady(oboe::AudioStream *stream, void *audioData, int32_t numFrames) override {
-        float *inputData = static_cast<float*>(audioData);
+        if (stream->getDirection() == oboe::Direction::Input) {
+            LOGD("Processing %d input frames", numFrames);
+            float *inputData = static_cast<float*>(audioData);
+            processAudio(inputData, numFrames);
 
-        // Apply noise gate
-        for (int i = 0; i < numFrames * CHANNEL_COUNT; ++i) {
-            if (std::abs(inputData[i]) < noiseGateThreshold) {
-                inputData[i] = 0.0f;
+            if (mProcessedBuffer.size() < numFrames * CHANNEL_COUNT) {
+                mProcessedBuffer.resize(numFrames * CHANNEL_COUNT);
             }
-        }
-
-        processAudio(inputData, numFrames);
-
-        if (mOutputStream && mOutputStream->getState() == oboe::StreamState::Started) {
-            auto result = mOutputStream->write(inputData, numFrames, 0);
-            if (!result) {
-                LOGE("Error writing to output stream: %s", oboe::convertToText(result.error()));
-            } else if (result.value() != numFrames) {
-                LOGE("Partial write: %d frames out of %d", result.value(), numFrames);
+            std::copy(inputData, inputData + numFrames * CHANNEL_COUNT, mProcessedBuffer.begin());
+        } else if (stream->getDirection() == oboe::Direction::Output) {
+            LOGD("Filling %d output frames", numFrames);
+            float *outputData = static_cast<float*>(audioData);
+            if (mProcessedBuffer.size() >= numFrames * CHANNEL_COUNT) {
+                std::copy(mProcessedBuffer.begin(), mProcessedBuffer.begin() + numFrames * CHANNEL_COUNT, outputData);
+            } else {
+                LOGD("Not enough processed data, filling with zeros");
+                std::fill(outputData, outputData + numFrames * CHANNEL_COUNT, 0.0f);
             }
         }
 
         return oboe::DataCallbackResult::Continue;
     }
 
-    void setOutputStream(std::shared_ptr<oboe::AudioStream> stream) {
-        mOutputStream = stream;
+    void onErrorBeforeClose(oboe::AudioStream *stream, oboe::Result error) override {
+        LOGE("Audio stream error before close: %s", oboe::convertToText(error));
+    }
+
+    void onErrorAfterClose(oboe::AudioStream *stream, oboe::Result error) override {
+        LOGE("Audio stream error after close: %s", oboe::convertToText(error));
     }
 
 private:
     std::vector<float> envelopes = std::vector<float>(wdrc_params.size(), 0.0f);
-    std::shared_ptr<oboe::AudioStream> mOutputStream;
-    float noiseGateThreshold = 0.01f; // Adjust this value to control noise gate sensitivity
+    std::vector<float> mProcessedBuffer;
+    float noiseGateThreshold = 0.005f;
 
     void processAudio(float* data, int32_t numFrames) {
+        int nonZeroSamples = 0;
         for (int i = 0; i < numFrames * CHANNEL_COUNT; ++i) {
             float sample = data[i];
-            sample = applyWDRC(sample);
+
+            // Apply noise gate
+            if (std::abs(sample) < noiseGateThreshold) {
+                sample = 0.0f;
+            } else {
+                sample = applyWDRC(sample);
+                nonZeroSamples++;
+            }
+
             data[i] = std::clamp(sample, -1.0f, 1.0f);
         }
+        LOGD("Processed %d frames, %d non-zero samples", numFrames, nonZeroSamples);
     }
 
     float applyWDRC(float sample) {
@@ -110,11 +124,11 @@ Java_com_auditapp_hearingamp_AudioProcessingService_startAudioProcessing(JNIEnv 
     // Configure and open input stream
     builder.setDirection(oboe::Direction::Input)
             ->setPerformanceMode(oboe::PerformanceMode::LowLatency)
-            ->setSharingMode(oboe::SharingMode::Exclusive)
+            ->setSharingMode(oboe::SharingMode::Shared)  // Changed to Shared
             ->setFormat(oboe::AudioFormat::Float)
             ->setChannelCount(CHANNEL_COUNT)
             ->setSampleRate(SAMPLE_RATE)
-            ->setFramesPerCallback(BUFFER_SIZE)
+            ->setFramesPerCallback(FRAMES_PER_CALLBACK)
             ->setCallback(engine);
 
     oboe::Result result = builder.openStream(inputStream);
@@ -125,14 +139,12 @@ Java_com_auditapp_hearingamp_AudioProcessingService_startAudioProcessing(JNIEnv 
 
     // Configure and open output stream
     builder.setDirection(oboe::Direction::Output)
-            ->setCallback(nullptr);
+            ->setCallback(engine);
     result = builder.openStream(outputStream);
     if (result != oboe::Result::OK) {
         LOGE("Failed to open output stream. Error: %s", oboe::convertToText(result));
         return -1;
     }
-
-    engine->setOutputStream(outputStream);
 
     // Start the streams
     result = inputStream->requestStart();
