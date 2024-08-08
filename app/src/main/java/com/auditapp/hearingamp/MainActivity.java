@@ -20,7 +20,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
     private static final String[] LANGUAGES = {"en", "es-rES", "fr-rFR"};
     private TextView switchLanguageButton, appTitle;
-    private Button testButton, calibrationButton, viewResultsButton;
+    private Button testButton, calibrationButton, viewResultsButton, realTimeAmplificationButton;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -39,6 +39,7 @@ public class MainActivity extends AppCompatActivity {
         testButton = findViewById(R.id.testButton);
         calibrationButton = findViewById(R.id.calibrationButton);
         viewResultsButton = findViewById(R.id.viewResultsButton);
+        realTimeAmplificationButton = findViewById(R.id.realTimeAmplificationButton);
     }
 
     private void setClickListeners() {
@@ -58,6 +59,7 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(this, getString(R.string.no_test_results), Toast.LENGTH_SHORT).show();
             }
         });
+        realTimeAmplificationButton.setOnClickListener(view -> startActivity(new Intent(this, RealTimeAmplificationActivity.class)));
     }
 
     private void showChangeLanguageDialog() {
@@ -124,6 +126,7 @@ public class MainActivity extends AppCompatActivity {
         testButton.setText(R.string.test);
         calibrationButton.setText(R.string.calibration);
         viewResultsButton.setText(R.string.view_results);
+        realTimeAmplificationButton.setText(R.string.real_time_amplification);
 
         Log.d(TAG, "Current Locale: " + Locale.getDefault().toString());
         Log.d(TAG, "Texts updated. App title: " + appTitle.getText());
@@ -131,6 +134,7 @@ public class MainActivity extends AppCompatActivity {
         Log.d(TAG, "Test: " + testButton.getText());
         Log.d(TAG, "Calibration: " + calibrationButton.getText());
         Log.d(TAG, "View Results: " + viewResultsButton.getText());
+        Log.d(TAG, "Real-Time Amplification: " + realTimeAmplificationButton.getText());
     }
 
     @Override

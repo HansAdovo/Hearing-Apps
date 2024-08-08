@@ -91,4 +91,11 @@
     <string name="ear_order_test_sequence_required">Test de séquence requise</string>
     <string name="current_setting_no_setting">Paramètre actuel:</string>
     <string name="done">Faire un don</string>
+    <string name="real_time_amplification">Amplification en temps réel</string>
+    <string name="amplification_on">Amplification activée</string>
+    <string name="amplification_off">Amplification désactivée</string>
+    <string name="amplification_started">Amplification démarrée</string>
+    <string name="amplification_stopped">Amplification arrêtée</string>
+    <string name="error_starting_amplification">Erreur de démarrage de l\'amplification</string>
+    <string name="microphone_permission_denied">Autorisation du microphone refusée</string>
 </resources>

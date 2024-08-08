@@ -90,5 +90,12 @@
     <string name="no_test_results">No test results available</string>
     <string name="ear_order_test_sequence_required">Test Sequence Required</string>
     <string name="current_setting_no_setting">Current Setting:</string>
-    <string name="done" >Done</string>
+    <string name="done">Done</string>
+    <string name="real_time_amplification">Real-Time Amplification</string>
+    <string name="amplification_on">Amplification ON</string>
+    <string name="amplification_off">Amplification OFF</string>
+    <string name="amplification_started">Amplification Started</string>
+    <string name="amplification_stopped">Amplification Stopped</string>
+    <string name="error_starting_amplification">Error starting amplification</string>
+    <string name="microphone_permission_denied">Microphone permission denied</string>
 </resources>
