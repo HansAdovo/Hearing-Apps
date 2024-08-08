@@ -13,6 +13,7 @@ public class AudioProcessingService extends Service {
     private boolean isProcessing = false;
 
     public static final String ACTION_PERMISSIONS_REQUIRED = "com.auditapp.hearingamp.ACTION_PERMISSIONS_REQUIRED";
+    public static final String ACTION_PROCESSING_ERROR = "com.auditapp.hearingamp.ACTION_PROCESSING_ERROR";
 
     static {
         System.loadLibrary("hearingamp");
@@ -53,6 +54,7 @@ public class AudioProcessingService extends Service {
         int result = startAudioProcessing();
         if (result != 0) {
             Log.e(TAG, "Failed to start audio processing. Error code: " + result);
+            sendBroadcast(new Intent(ACTION_PROCESSING_ERROR));
             stopSelf();
         } else {
             Log.d(TAG, "Audio processing started successfully");

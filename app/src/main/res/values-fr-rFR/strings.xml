@@ -98,4 +98,5 @@
     <string name="amplification_stopped">Amplification arrêtée</string>
     <string name="error_starting_amplification">Erreur de démarrage de l\'amplification</string>
     <string name="microphone_permission_denied">Autorisation du microphone refusée</string>
+    <string name="audio_processing_error">Erreur de traitement audio</string>
 </resources>

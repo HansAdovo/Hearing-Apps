@@ -1,7 +1,10 @@
 package com.auditapp.hearingamp;
 
 import android.Manifest;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.widget.Button;
@@ -19,6 +22,16 @@ public class RealTimeAmplificationActivity extends AppCompatActivity {
     private ToggleButton toggleAmplification;
     private Button btnReturnToTitle;
     private boolean isReturningToTitle = false;
+
+    private BroadcastReceiver errorReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if (intent.getAction().equals(AudioProcessingService.ACTION_PROCESSING_ERROR)) {
+                Toast.makeText(RealTimeAmplificationActivity.this, R.string.audio_processing_error, Toast.LENGTH_LONG).show();
+                toggleAmplification.setChecked(false);
+            }
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -44,6 +57,9 @@ public class RealTimeAmplificationActivity extends AppCompatActivity {
             }
             finish();
         });
+
+        IntentFilter filter = new IntentFilter(AudioProcessingService.ACTION_PROCESSING_ERROR);
+        registerReceiver(errorReceiver, filter);
     }
 
     private void checkAndRequestAudioPermission() {
@@ -99,5 +115,6 @@ public class RealTimeAmplificationActivity extends AppCompatActivity {
         if (toggleAmplification.isChecked()) {
             stopAmplification();
         }
+        unregisterReceiver(errorReceiver);
     }
 }

@@ -9,8 +9,8 @@
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "hearingamp", __VA_ARGS__)
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, "hearingamp", __VA_ARGS__)
 
-constexpr int SAMPLE_RATE = 48000; // Changed to match the actual sample rate
-constexpr int CHANNEL_COUNT = 1;
+constexpr int SAMPLE_RATE = 48000;
+constexpr int CHANNEL_COUNT = 2;  // Changed to stereo
 constexpr int BUFFER_SIZE = 2048;
 
 struct WDRCParams {
@@ -35,13 +35,12 @@ public:
             float *inputData = static_cast<float*>(audioData);
             processAudio(inputData, numFrames);
 
-            // Write processed audio to output stream
-            if (mOutputStream) {
+            if (mOutputStream && mOutputStream->getState() == oboe::StreamState::Started) {
                 auto result = mOutputStream->write(inputData, numFrames, 0);
                 if (!result) {
                     LOGE("Error writing to output stream: %s", oboe::convertToText(result.error()));
                 } else if (result.value() != numFrames) {
-                    LOGE("Error writing to output stream. Wrote %d frames instead of %d", result.value(), numFrames);
+                    LOGE("Partial write: %d frames out of %d", result.value(), numFrames);
                 }
             }
         }
@@ -65,7 +64,7 @@ private:
     std::shared_ptr<oboe::AudioStream> mOutputStream;
 
     void processAudio(float* data, int32_t numFrames) {
-        for (int i = 0; i < numFrames; ++i) {
+        for (int i = 0; i < numFrames * CHANNEL_COUNT; ++i) {
             float sample = data[i];
             sample = applyWDRC(sample);
             data[i] = std::clamp(sample, -1.0f, 1.0f);
@@ -125,7 +124,8 @@ Java_com_auditapp_hearingamp_AudioProcessingService_startAudioProcessing(JNIEnv 
     }
 
     // Configure and open output stream
-    builder.setDirection(oboe::Direction::Output);
+    builder.setDirection(oboe::Direction::Output)
+            ->setCallback(nullptr);
     result = builder.openStream(outputStream);
     if (result != oboe::Result::OK) {
         LOGE("Failed to open output stream. Error: %s", oboe::convertToText(result));
