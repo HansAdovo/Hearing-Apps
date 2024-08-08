@@ -7,8 +7,9 @@
 #include <android/log.h>
 
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "hearingamp", __VA_ARGS__)
+#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, "hearingamp", __VA_ARGS__)
 
-constexpr int SAMPLE_RATE = 44100;
+constexpr int SAMPLE_RATE = 48000; // Changed to match the actual sample rate
 constexpr int CHANNEL_COUNT = 1;
 constexpr int BUFFER_SIZE = 2048;
 
@@ -30,8 +31,19 @@ std::vector<WDRCParams> wdrc_params = {
 class HearingAmpEngine : public oboe::AudioStreamCallback {
 public:
     oboe::DataCallbackResult onAudioReady(oboe::AudioStream *stream, void *audioData, int32_t numFrames) override {
-        float *floatData = static_cast<float*>(audioData);
-        processAudio(floatData, numFrames);
+        if (stream->getDirection() == oboe::Direction::Input) {
+            // Process input audio
+            float *inputData = static_cast<float*>(audioData);
+            processAudio(inputData, numFrames);
+
+            // Write processed audio to output stream
+            if (mOutputStream) {
+                auto result = mOutputStream->write(inputData, numFrames, 0);
+                if (result != numFrames) {
+                    LOGE("Error writing to output stream. Wrote %d frames instead of %d", result, numFrames);
+                }
+            }
+        }
         return oboe::DataCallbackResult::Continue;
     }
 
@@ -43,8 +55,13 @@ public:
         LOGE("Audio stream error after close: %s", oboe::convertToText(error));
     }
 
+    void setOutputStream(std::shared_ptr<oboe::AudioStream> stream) {
+        mOutputStream = stream;
+    }
+
 private:
     std::vector<float> envelopes = std::vector<float>(wdrc_params.size(), 0.0f);
+    std::shared_ptr<oboe::AudioStream> mOutputStream;
 
     void processAudio(float* data, int32_t numFrames) {
         for (int i = 0; i < numFrames; ++i) {
@@ -80,6 +97,8 @@ private:
 };
 
 static HearingAmpEngine *engine = nullptr;
+static std::shared_ptr<oboe::AudioStream> inputStream;
+static std::shared_ptr<oboe::AudioStream> outputStream;
 
 extern "C" JNIEXPORT jint JNICALL
 Java_com_auditapp_hearingamp_AudioProcessingService_startAudioProcessing(JNIEnv *env, jobject /* this */) {
@@ -88,8 +107,8 @@ Java_com_auditapp_hearingamp_AudioProcessingService_startAudioProcessing(JNIEnv 
     }
 
     oboe::AudioStreamBuilder builder;
-    std::shared_ptr<oboe::AudioStream> stream;
 
+    // Configure and open input stream
     builder.setDirection(oboe::Direction::Input)
             ->setPerformanceMode(oboe::PerformanceMode::LowLatency)
             ->setSharingMode(oboe::SharingMode::Exclusive)
@@ -98,23 +117,52 @@ Java_com_auditapp_hearingamp_AudioProcessingService_startAudioProcessing(JNIEnv 
             ->setSampleRate(SAMPLE_RATE)
             ->setCallback(engine);
 
-    oboe::Result result = builder.openStream(stream);
+    oboe::Result result = builder.openStream(inputStream);
     if (result != oboe::Result::OK) {
-        LOGE("Failed to open stream. Error: %s", oboe::convertToText(result));
+        LOGE("Failed to open input stream. Error: %s", oboe::convertToText(result));
         return -1;
     }
 
-    result = stream->requestStart();
+    // Configure and open output stream
+    builder.setDirection(oboe::Direction::Output);
+    result = builder.openStream(outputStream);
     if (result != oboe::Result::OK) {
-        LOGE("Failed to start stream. Error: %s", oboe::convertToText(result));
+        LOGE("Failed to open output stream. Error: %s", oboe::convertToText(result));
         return -1;
     }
 
+    engine->setOutputStream(outputStream);
+
+    // Start the streams
+    result = inputStream->requestStart();
+    if (result != oboe::Result::OK) {
+        LOGE("Failed to start input stream. Error: %s", oboe::convertToText(result));
+        return -1;
+    }
+
+    result = outputStream->requestStart();
+    if (result != oboe::Result::OK) {
+        LOGE("Failed to start output stream. Error: %s", oboe::convertToText(result));
+        return -1;
+    }
+
+    LOGD("Audio processing started successfully");
     return 0;
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_auditapp_hearingamp_AudioProcessingService_stopAudioProcessing(JNIEnv *env, jobject /* this */) {
+    if (inputStream) {
+        inputStream->requestStop();
+        inputStream->close();
+        inputStream.reset();
+    }
+    if (outputStream) {
+        outputStream->requestStop();
+        outputStream->close();
+        outputStream.reset();
+    }
     delete engine;
     engine = nullptr;
+    LOGD("Audio processing stopped");
 }

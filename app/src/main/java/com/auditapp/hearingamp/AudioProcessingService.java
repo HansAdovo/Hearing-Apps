@@ -28,13 +28,17 @@ public class AudioProcessingService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        Log.d(TAG, "onStartCommand called");
         if (!isProcessing) {
             if (checkPermission()) {
                 startProcessing();
             } else {
+                Log.e(TAG, "Audio permission not granted");
                 sendBroadcast(new Intent(ACTION_PERMISSIONS_REQUIRED));
                 stopSelf();
             }
+        } else {
+            Log.d(TAG, "Audio processing already running");
         }
         return START_STICKY;
     }
@@ -44,17 +48,22 @@ public class AudioProcessingService extends Service {
     }
 
     private void startProcessing() {
+        Log.d(TAG, "Starting audio processing");
         isProcessing = true;
         int result = startAudioProcessing();
         if (result != 0) {
             Log.e(TAG, "Failed to start audio processing. Error code: " + result);
             stopSelf();
+        } else {
+            Log.d(TAG, "Audio processing started successfully");
         }
     }
 
     @Override
     public void onDestroy() {
+        Log.d(TAG, "onDestroy called");
         if (isProcessing) {
+            Log.d(TAG, "Stopping audio processing");
             stopAudioProcessing();
             isProcessing = false;
         }
