@@ -10,8 +10,8 @@
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, "hearingamp", __VA_ARGS__)
 
 constexpr int SAMPLE_RATE = 48000;
-constexpr int CHANNEL_COUNT = 2;  // Changed to stereo
-constexpr int BUFFER_SIZE = 2048;
+constexpr int CHANNEL_COUNT = 2;
+constexpr int BUFFER_SIZE = 480; // Reduced buffer size for lower latency
 
 struct WDRCParams {
     float threshold;
@@ -22,37 +22,36 @@ struct WDRCParams {
 };
 
 std::vector<WDRCParams> wdrc_params = {
-        {-40, 3.0f, 0.01f, 0.1f, 10},  // low
-        {-35, 3.5f, 0.01f, 0.1f, 10},  // mid_low
-        {-30, 4.0f, 0.01f, 0.1f, 10},  // mid_high
-        {-25, 4.5f, 0.01f, 0.1f, 10}   // high
+        {-50, 2.0f, 0.005f, 0.05f, 5},  // low
+        {-45, 2.5f, 0.005f, 0.05f, 5},  // mid_low
+        {-40, 3.0f, 0.005f, 0.05f, 5},  // mid_high
+        {-35, 3.5f, 0.005f, 0.05f, 5}   // high
 };
 
 class HearingAmpEngine : public oboe::AudioStreamCallback {
 public:
     oboe::DataCallbackResult onAudioReady(oboe::AudioStream *stream, void *audioData, int32_t numFrames) override {
-        if (stream->getDirection() == oboe::Direction::Input) {
-            float *inputData = static_cast<float*>(audioData);
-            processAudio(inputData, numFrames);
+        float *inputData = static_cast<float*>(audioData);
 
-            if (mOutputStream && mOutputStream->getState() == oboe::StreamState::Started) {
-                auto result = mOutputStream->write(inputData, numFrames, 0);
-                if (!result) {
-                    LOGE("Error writing to output stream: %s", oboe::convertToText(result.error()));
-                } else if (result.value() != numFrames) {
-                    LOGE("Partial write: %d frames out of %d", result.value(), numFrames);
-                }
+        // Apply noise gate
+        for (int i = 0; i < numFrames * CHANNEL_COUNT; ++i) {
+            if (std::abs(inputData[i]) < noiseGateThreshold) {
+                inputData[i] = 0.0f;
             }
         }
+
+        processAudio(inputData, numFrames);
+
+        if (mOutputStream && mOutputStream->getState() == oboe::StreamState::Started) {
+            auto result = mOutputStream->write(inputData, numFrames, 0);
+            if (!result) {
+                LOGE("Error writing to output stream: %s", oboe::convertToText(result.error()));
+            } else if (result.value() != numFrames) {
+                LOGE("Partial write: %d frames out of %d", result.value(), numFrames);
+            }
+        }
+
         return oboe::DataCallbackResult::Continue;
-    }
-
-    void onErrorBeforeClose(oboe::AudioStream *stream, oboe::Result error) override {
-        LOGE("Audio stream error before close: %s", oboe::convertToText(error));
-    }
-
-    void onErrorAfterClose(oboe::AudioStream *stream, oboe::Result error) override {
-        LOGE("Audio stream error after close: %s", oboe::convertToText(error));
     }
 
     void setOutputStream(std::shared_ptr<oboe::AudioStream> stream) {
@@ -62,6 +61,7 @@ public:
 private:
     std::vector<float> envelopes = std::vector<float>(wdrc_params.size(), 0.0f);
     std::shared_ptr<oboe::AudioStream> mOutputStream;
+    float noiseGateThreshold = 0.01f; // Adjust this value to control noise gate sensitivity
 
     void processAudio(float* data, int32_t numFrames) {
         for (int i = 0; i < numFrames * CHANNEL_COUNT; ++i) {
@@ -79,7 +79,6 @@ private:
             float thresholdLinear = std::pow(10, params.threshold / 20);
             float gainLinear = std::pow(10, params.gain / 20);
 
-            // Apply attack and release
             float alphaA = std::exp(-1.0f / (SAMPLE_RATE * params.attack_time));
             float alphaR = std::exp(-1.0f / (SAMPLE_RATE * params.release_time));
             float alpha = inputLevel > envelopes[i] ? alphaA : alphaR;
@@ -115,6 +114,7 @@ Java_com_auditapp_hearingamp_AudioProcessingService_startAudioProcessing(JNIEnv 
             ->setFormat(oboe::AudioFormat::Float)
             ->setChannelCount(CHANNEL_COUNT)
             ->setSampleRate(SAMPLE_RATE)
+            ->setFramesPerCallback(BUFFER_SIZE)
             ->setCallback(engine);
 
     oboe::Result result = builder.openStream(inputStream);
