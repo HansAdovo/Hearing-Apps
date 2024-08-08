@@ -58,8 +58,9 @@ public class RealTimeAmplificationActivity extends AppCompatActivity {
             finish();
         });
 
+        // Register the receiver with the RECEIVER_NOT_EXPORTED flag
         IntentFilter filter = new IntentFilter(AudioProcessingService.ACTION_PROCESSING_ERROR);
-        registerReceiver(errorReceiver, filter);
+        ContextCompat.registerReceiver(this, errorReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
     }
 
     private void checkAndRequestAudioPermission() {

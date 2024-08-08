@@ -27,38 +27,40 @@
         </activity>
 
         <activity android:name=".TestActivity"
-            android:exported="true"
+            android:exported="false"
             android:configChanges="locale|layoutDirection" />
 
         <activity android:name=".CalibrationActivity"
-            android:exported="true"
+            android:exported="false"
             android:configChanges="locale|layoutDirection" />
 
         <activity android:name=".ViewResultsActivity"
-            android:exported="true"
+            android:exported="false"
             android:configChanges="locale|layoutDirection" />
 
         <activity android:name=".TestThresholdInstructionActivity"
-            android:exported="true"
+            android:exported="false"
             android:configChanges="locale|layoutDirection" />
 
         <activity android:name=".TestThresholdActivity"
-            android:exported="true"
+            android:exported="false"
             android:configChanges="locale|layoutDirection" />
 
         <activity android:name=".TestMCLInstructionActivity"
-            android:exported="true"
+            android:exported="false"
             android:configChanges="locale|layoutDirection" />
 
         <activity android:name=".TestMCLActivity"
-            android:exported="true"
+            android:exported="false"
             android:configChanges="locale|layoutDirection" />
 
         <activity android:name=".RealTimeAmplificationActivity"
-            android:exported="true"
+            android:exported="false"
             android:configChanges="locale|layoutDirection" />
 
-        <service android:name=".AudioProcessingService" />
+        <service
+            android:name=".AudioProcessingService"
+            android:exported="false" />
 
     </application>
 
