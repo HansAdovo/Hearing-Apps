@@ -13,7 +13,7 @@
 
 constexpr int DEFAULT_SAMPLE_RATE = 48000;
 constexpr int DEFAULT_CHANNEL_COUNT = 2;
-constexpr int FRAMES_PER_CALLBACK = 192;  // Reduced from 384
+constexpr int FRAMES_PER_CALLBACK = 96;  // Reduced from 192
 
 struct WDRCParams {
     float threshold;
@@ -24,10 +24,10 @@ struct WDRCParams {
 };
 
 std::vector<WDRCParams> wdrc_params = {
-        {-50, 1.3f, 0.005f, 0.050f, 2},  // low
-        {-45, 1.5f, 0.005f, 0.050f, 2},  // mid_low
-        {-40, 1.7f, 0.005f, 0.050f, 2},  // mid_high
-        {-35, 2.0f, 0.005f, 0.050f, 2}   // high
+        {-60, 1.2f, 0.003f, 0.030f, 1.5},  // low
+        {-50, 1.3f, 0.003f, 0.030f, 1.5},  // mid_low
+        {-40, 1.5f, 0.003f, 0.030f, 1.5},  // mid_high
+        {-30, 1.7f, 0.003f, 0.030f, 1.5}   // high
 };
 
 class CircularBuffer {
@@ -68,7 +68,7 @@ private:
 
 class HearingAmpEngine : public oboe::AudioStreamCallback {
 public:
-    HearingAmpEngine() : mProcessedBuffer(FRAMES_PER_CALLBACK * DEFAULT_CHANNEL_COUNT * 4) {}
+    HearingAmpEngine() : mProcessedBuffer(FRAMES_PER_CALLBACK * DEFAULT_CHANNEL_COUNT * 8) {}
 
     oboe::DataCallbackResult onAudioReady(oboe::AudioStream *stream, void *audioData, int32_t numFrames) override {
         int32_t channelCount = stream->getChannelCount();
@@ -113,38 +113,46 @@ private:
     float noiseGateThreshold = 0.005f;
     float noiseGateKnee = 0.003f;
     float prevOutputLeft = 0.0f, prevOutputRight = 0.0f;
+    float prevSampleLeft = 0.0f, prevSampleRight = 0.0f;
 
     int processAudio(float* data, int32_t numFrames, int32_t channelCount) {
-        if (data == nullptr) {
-            LOGE("Null audio data received");
-            return 0;
-        }
-
         int nonZeroSamples = 0;
         int totalSamples = numFrames * channelCount;
 
-        for (int i = 0; i < totalSamples; i++) {
-            float& sample = data[i];
-            float absSample = std::abs(sample);
+        for (int i = 0; i < totalSamples; i += 2) {
+            float& sampleLeft = data[i];
+            float& sampleRight = data[i + 1];
 
-            if (absSample > 1e-6f) {
-                nonZeroSamples++;
+            if (std::abs(sampleLeft) > 1e-6f || std::abs(sampleRight) > 1e-6f) {
+                nonZeroSamples += 2;
             }
 
-            // Apply noise gate with soft knee
-            if (absSample < noiseGateThreshold - noiseGateKnee) {
-                sample = 0.0f;
-            } else if (absSample < noiseGateThreshold + noiseGateKnee) {
-                float factor = (absSample - (noiseGateThreshold - noiseGateKnee)) / (2 * noiseGateKnee);
-                sample *= factor;
-            }
+            // Process left channel
+            sampleLeft = processChannel(sampleLeft, prevOutputLeft, prevSampleLeft);
 
-            sample = applySingleWDRC(sample);
-            sample = lowPassFilter(sample, (i % channelCount == 0) ? prevOutputLeft : prevOutputRight);
-            sample = limit(sample);
+            // Process right channel
+            sampleRight = processChannel(sampleRight, prevOutputRight, prevSampleRight);
         }
 
         return nonZeroSamples;
+    }
+
+    float processChannel(float sample, float &prevOutput, float &prevSample) {
+        // Apply noise gate with soft knee
+        float absSample = std::abs(sample);
+        if (absSample < noiseGateThreshold - noiseGateKnee) {
+            sample = 0.0f;
+        } else if (absSample < noiseGateThreshold + noiseGateKnee) {
+            float factor = (absSample - (noiseGateThreshold - noiseGateKnee)) / (2 * noiseGateKnee);
+            sample *= factor;
+        }
+
+        sample = applySingleWDRC(sample);
+        sample = lowPassFilter(sample, prevOutput);
+        sample = deEsser(sample, prevSample);
+        sample = limit(sample);
+
+        return sample;
     }
 
     float applySingleWDRC(float sample) {
@@ -174,6 +182,15 @@ private:
         float output = alpha * input + (1 - alpha) * prevOutput;
         prevOutput = output;
         return output;
+    }
+
+    float deEsser(float sample, float &prevSample, float threshold = 0.1f, float reduction = 0.5f) {
+        float highFreq = sample - prevSample;
+        if (std::abs(highFreq) > threshold) {
+            sample = prevSample + highFreq * reduction;
+        }
+        prevSample = sample;
+        return sample;
     }
 
     float limit(float sample, float threshold = 0.9f) {
