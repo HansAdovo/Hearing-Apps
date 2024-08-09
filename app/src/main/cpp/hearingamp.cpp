@@ -13,7 +13,7 @@
 
 constexpr int DEFAULT_SAMPLE_RATE = 48000;
 constexpr int DEFAULT_CHANNEL_COUNT = 2;
-constexpr int FRAMES_PER_CALLBACK = 384;
+constexpr int FRAMES_PER_CALLBACK = 192;  // Reduced from 384
 
 struct WDRCParams {
     float threshold;
@@ -24,10 +24,10 @@ struct WDRCParams {
 };
 
 std::vector<WDRCParams> wdrc_params = {
-        {-40, 1.5f, 0.010f, 0.100f, 3},  // low
-        {-35, 2.0f, 0.010f, 0.100f, 3},  // mid_low
-        {-30, 2.5f, 0.010f, 0.100f, 3},  // mid_high
-        {-25, 3.0f, 0.010f, 0.100f, 3}   // high
+        {-50, 1.3f, 0.005f, 0.050f, 2},  // low
+        {-45, 1.5f, 0.005f, 0.050f, 2},  // mid_low
+        {-40, 1.7f, 0.005f, 0.050f, 2},  // mid_high
+        {-35, 2.0f, 0.005f, 0.050f, 2}   // high
 };
 
 class CircularBuffer {
@@ -110,8 +110,8 @@ private:
     std::vector<float> envelopes = std::vector<float>(wdrc_params.size(), 0.0f);
     CircularBuffer mProcessedBuffer;
     std::mutex mBufferMutex;
-    float noiseGateThreshold = 0.01f;
-    float noiseGateKnee = 0.005f;
+    float noiseGateThreshold = 0.005f;
+    float noiseGateKnee = 0.003f;
     float prevOutputLeft = 0.0f, prevOutputRight = 0.0f;
 
     int processAudio(float* data, int32_t numFrames, int32_t channelCount) {
@@ -121,41 +121,33 @@ private:
         }
 
         int nonZeroSamples = 0;
-        for (int i = 0; i < numFrames * channelCount; ++i) {
-            float sample = data[i];
+        int totalSamples = numFrames * channelCount;
 
-            if (std::abs(sample) > 1e-6) {
+        for (int i = 0; i < totalSamples; i++) {
+            float& sample = data[i];
+            float absSample = std::abs(sample);
+
+            if (absSample > 1e-6f) {
                 nonZeroSamples++;
             }
 
             // Apply noise gate with soft knee
-            if (std::abs(sample) < noiseGateThreshold - noiseGateKnee) {
+            if (absSample < noiseGateThreshold - noiseGateKnee) {
                 sample = 0.0f;
-            } else if (std::abs(sample) < noiseGateThreshold + noiseGateKnee) {
-                float factor = (std::abs(sample) - (noiseGateThreshold - noiseGateKnee)) / (2 * noiseGateKnee);
+            } else if (absSample < noiseGateThreshold + noiseGateKnee) {
+                float factor = (absSample - (noiseGateThreshold - noiseGateKnee)) / (2 * noiseGateKnee);
                 sample *= factor;
             }
 
-            if (sample != 0.0f) {
-                sample = applyWDRC(sample);
-            }
-
-            // Apply low-pass filter
-            if (i % channelCount == 0) {
-                sample = lowPassFilter(sample, prevOutputLeft);
-            } else {
-                sample = lowPassFilter(sample, prevOutputRight);
-            }
-
-            // Apply limiter
+            sample = applySingleWDRC(sample);
+            sample = lowPassFilter(sample, (i % channelCount == 0) ? prevOutputLeft : prevOutputRight);
             sample = limit(sample);
-
-            data[i] = sample;
         }
+
         return nonZeroSamples;
     }
 
-    float applyWDRC(float sample) {
+    float applySingleWDRC(float sample) {
         float output = sample;
         for (size_t i = 0; i < wdrc_params.size(); ++i) {
             const auto& params = wdrc_params[i];
@@ -178,7 +170,7 @@ private:
         return output;
     }
 
-    float lowPassFilter(float input, float &prevOutput, float alpha = 0.1f) {
+    float lowPassFilter(float input, float &prevOutput, float alpha = 0.3f) {
         float output = alpha * input + (1 - alpha) * prevOutput;
         prevOutput = output;
         return output;
