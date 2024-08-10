@@ -14,6 +14,7 @@ public class AudioProcessingService extends Service {
 
     public static final String ACTION_PERMISSIONS_REQUIRED = "com.auditapp.hearingamp.ACTION_PERMISSIONS_REQUIRED";
     public static final String ACTION_PROCESSING_ERROR = "com.auditapp.hearingamp.ACTION_PROCESSING_ERROR";
+    public static final String ACTION_UPDATE_PARAMS = "com.auditapp.hearingamp.ACTION_UPDATE_PARAMS";
 
     static {
         System.loadLibrary("hearingamp");
@@ -21,6 +22,7 @@ public class AudioProcessingService extends Service {
 
     private native int startAudioProcessing();
     private native void stopAudioProcessing();
+    private native void updateAudioParams(float[] thresholds, float[] ratios, float[] attacks, float[] releases, float[] gains);
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -30,6 +32,11 @@ public class AudioProcessingService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         Log.d(TAG, "onStartCommand called");
+        if (intent != null && ACTION_UPDATE_PARAMS.equals(intent.getAction())) {
+            updateParamsFromIntent(intent);
+            return START_STICKY;
+        }
+
         if (!isProcessing) {
             if (checkPermission()) {
                 startProcessing();
@@ -51,13 +58,37 @@ public class AudioProcessingService extends Service {
     private void startProcessing() {
         Log.d(TAG, "Starting audio processing");
         isProcessing = true;
-        int result = startAudioProcessing();
-        if (result != 0) {
-            Log.e(TAG, "Failed to start audio processing. Error code: " + result);
+        try {
+            int result = startAudioProcessing();
+            if (result != 0) {
+                throw new RuntimeException("Failed to start audio processing. Error code: " + result);
+            }
+            Log.d(TAG, "Audio processing started successfully");
+        } catch (Exception e) {
+            Log.e(TAG, "Error in audio processing", e);
             sendBroadcast(new Intent(ACTION_PROCESSING_ERROR));
             stopSelf();
+        }
+    }
+
+    private void updateParamsFromIntent(Intent intent) {
+        float[] thresholds = intent.getFloatArrayExtra("thresholds");
+        float[] ratios = intent.getFloatArrayExtra("ratios");
+        float[] attacks = intent.getFloatArrayExtra("attacks");
+        float[] releases = intent.getFloatArrayExtra("releases");
+        float[] gains = intent.getFloatArrayExtra("gains");
+
+        if (thresholds != null && ratios != null && attacks != null && releases != null && gains != null) {
+            updateParams(thresholds, ratios, attacks, releases, gains);
         } else {
-            Log.d(TAG, "Audio processing started successfully");
+            Log.e(TAG, "Invalid parameters received in intent");
+        }
+    }
+
+    public void updateParams(float[] thresholds, float[] ratios, float[] attacks, float[] releases, float[] gains) {
+        if (isProcessing) {
+            updateAudioParams(thresholds, ratios, attacks, releases, gains);
+            Log.d(TAG, "Audio processing parameters updated");
         }
     }
 
