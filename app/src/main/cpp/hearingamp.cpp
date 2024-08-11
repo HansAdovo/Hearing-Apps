@@ -16,10 +16,10 @@
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, "hearingamp", __VA_ARGS__)
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "hearingamp", __VA_ARGS__)
 
-constexpr int DEFAULT_SAMPLE_RATE = 44100;
+constexpr int DEFAULT_SAMPLE_RATE = 48000;
 constexpr int DEFAULT_CHANNEL_COUNT = 2;
-constexpr int FRAMES_PER_CALLBACK = 256;
-constexpr int BUFFER_SIZE_FRAMES = 4096;  // Increased buffer size for Bluetooth
+constexpr int FRAMES_PER_CALLBACK = 64;
+constexpr int BUFFER_SIZE_FRAMES = 1024;
 constexpr int NUM_BANDS = 4;
 
 struct WDRCParams {
@@ -117,6 +117,10 @@ public:
     oboe::DataCallbackResult onAudioReady(oboe::AudioStream *stream, void *audioData, int32_t numFrames) override {
         float *data = static_cast<float*>(audioData);
 
+        if (!mIsProcessing) {
+            return oboe::DataCallbackResult::Stop;
+        }
+
         if (stream->getDirection() == oboe::Direction::Input) {
             std::vector<float> processedBuffer(numFrames * stream->getChannelCount(), 0.0f);
 
@@ -153,6 +157,11 @@ public:
         LOGD("WDRC parameters updated");
     }
 
+    void stopProcessing() {
+        std::lock_guard<std::mutex> lock(mProcessingMutex);
+        mIsProcessing = false;
+    }
+
 private:
     AudioRingBuffer mInputBuffer;
     AudioRingBuffer mOutputBuffer;
@@ -161,6 +170,8 @@ private:
     std::array<WDRCParams, NUM_BANDS> mWDRCParams;
     std::mutex mParamMutex;
     std::array<float, NUM_BANDS> mEnvelopes;
+    std::atomic<bool> mIsProcessing{true};
+    std::mutex mProcessingMutex;
 
     void setupWDRC() {
         for (int i = 0; i < NUM_BANDS; ++i) {
@@ -200,6 +211,10 @@ extern "C" JNIEXPORT jint JNICALL
 Java_com_auditapp_hearingamp_AudioProcessingService_startAudioProcessing(JNIEnv *env, jobject /* this */) {
     if (engine == nullptr) {
         engine = new HearingAmpEngine();
+    } else {
+        engine->stopProcessing();  // Ensure any previous processing is stopped
+        delete engine;
+        engine = new HearingAmpEngine();
     }
 
     oboe::AudioStreamBuilder builder;
@@ -227,6 +242,7 @@ Java_com_auditapp_hearingamp_AudioProcessingService_startAudioProcessing(JNIEnv 
 
     // Set up output stream with matching configuration
     builder.setDirection(oboe::Direction::Output)
+            ->setPerformanceMode(oboe::PerformanceMode::LowLatency)
             ->setSampleRate(actualSampleRate)
             ->setChannelCount(actualChannelCount);
 
@@ -258,19 +274,26 @@ Java_com_auditapp_hearingamp_AudioProcessingService_startAudioProcessing(JNIEnv 
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_auditapp_hearingamp_AudioProcessingService_stopAudioProcessing(JNIEnv *env, jobject /* this */) {
-    if (inputStream) {
-        inputStream->requestStop();
-        inputStream->close();
-        inputStream.reset();
+    if (engine) {
+        engine->stopProcessing();
     }
-    if (outputStream) {
-        outputStream->requestStop();
-        outputStream->close();
-        outputStream.reset();
-    }
-    delete engine;
-    engine = nullptr;
-    LOGD("Audio processing stopped");
+
+    std::thread cleanup_thread([]() {
+        if (inputStream) {
+            inputStream->requestStop();
+            inputStream->close();
+            inputStream.reset();
+        }
+        if (outputStream) {
+            outputStream->requestStop();
+            outputStream->close();
+            outputStream.reset();
+        }
+        delete engine;
+        engine = nullptr;
+        LOGD("Audio processing stopped and cleaned up");
+    });
+    cleanup_thread.detach();
 }
 
 extern "C" JNIEXPORT void JNICALL
