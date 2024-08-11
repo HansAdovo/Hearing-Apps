@@ -15,6 +15,7 @@ public class AudioProcessingService extends Service {
     public static final String ACTION_PERMISSIONS_REQUIRED = "com.auditapp.hearingamp.ACTION_PERMISSIONS_REQUIRED";
     public static final String ACTION_PROCESSING_ERROR = "com.auditapp.hearingamp.ACTION_PROCESSING_ERROR";
     public static final String ACTION_UPDATE_PARAMS = "com.auditapp.hearingamp.ACTION_UPDATE_PARAMS";
+    public static final String ACTION_SET_AMPLIFICATION = "com.auditapp.hearingamp.ACTION_SET_AMPLIFICATION";
 
     static {
         System.loadLibrary("hearingamp");
@@ -23,6 +24,7 @@ public class AudioProcessingService extends Service {
     private native int startAudioProcessing();
     private native void stopAudioProcessing();
     private native void updateAudioParams(float[] thresholds, float[] ratios, float[] attacks, float[] releases, float[] gains);
+    private native void setAmplification(float amp);
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -32,9 +34,15 @@ public class AudioProcessingService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         Log.d(TAG, "onStartCommand called");
-        if (intent != null && ACTION_UPDATE_PARAMS.equals(intent.getAction())) {
-            updateParamsFromIntent(intent);
-            return START_STICKY;
+        if (intent != null) {
+            String action = intent.getAction();
+            if (ACTION_UPDATE_PARAMS.equals(action)) {
+                updateParamsFromIntent(intent);
+                return START_STICKY;
+            } else if (ACTION_SET_AMPLIFICATION.equals(action)) {
+                setAmplificationFromIntent(intent);
+                return START_STICKY;
+            }
         }
 
         if (!isProcessing) {
@@ -57,13 +65,16 @@ public class AudioProcessingService extends Service {
 
     private void startProcessing() {
         Log.d(TAG, "Starting audio processing");
-        isProcessing = true;
         try {
             int result = startAudioProcessing();
-            if (result != 0) {
-                throw new RuntimeException("Failed to start audio processing. Error code: " + result);
+            if (result == 0) {
+                isProcessing = true;
+                Log.d(TAG, "Audio processing started successfully");
+            } else {
+                Log.e(TAG, "Failed to start audio processing. Error code: " + result);
+                sendBroadcast(new Intent(ACTION_PROCESSING_ERROR));
+                stopSelf();
             }
-            Log.d(TAG, "Audio processing started successfully");
         } catch (Exception e) {
             Log.e(TAG, "Error in audio processing", e);
             sendBroadcast(new Intent(ACTION_PROCESSING_ERROR));
@@ -85,10 +96,22 @@ public class AudioProcessingService extends Service {
         }
     }
 
+    private void setAmplificationFromIntent(Intent intent) {
+        float amp = intent.getFloatExtra("amplification", 1.0f);
+        if (isProcessing) {
+            setAmplification(amp);
+            Log.d(TAG, "Amplification set to " + amp);
+        } else {
+            Log.w(TAG, "Attempted to set amplification while processing is not active");
+        }
+    }
+
     public void updateParams(float[] thresholds, float[] ratios, float[] attacks, float[] releases, float[] gains) {
         if (isProcessing) {
             updateAudioParams(thresholds, ratios, attacks, releases, gains);
             Log.d(TAG, "Audio processing parameters updated");
+        } else {
+            Log.w(TAG, "Attempted to update params while processing is not active");
         }
     }
 

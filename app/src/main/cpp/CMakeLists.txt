@@ -14,7 +14,7 @@ add_subdirectory(${OBOE_DIR} ${CMAKE_CURRENT_BINARY_DIR}/oboe)
 add_library(${CMAKE_PROJECT_NAME} SHARED
         hearingamp.cpp)
 
-# Link against Oboe
+# Link Oboe
 target_link_libraries(${CMAKE_PROJECT_NAME}
         oboe
         android
