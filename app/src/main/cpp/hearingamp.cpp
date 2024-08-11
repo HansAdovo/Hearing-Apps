@@ -101,16 +101,16 @@ private:
 
 class HearingAmpEngine : public oboe::AudioStreamCallback {
 public:
-    HearingAmpEngine() : mInputBuffer(BUFFER_SIZE_FRAMES * DEFAULT_CHANNEL_COUNT),
-                         mOutputBuffer(BUFFER_SIZE_FRAMES * DEFAULT_CHANNEL_COUNT),
-                         mAmplification(2.0f),
-                         mIsProcessing(false),
-                         mFilters{
-                                 BandpassFilter(DEFAULT_SAMPLE_RATE, 20, 300),
-                                 BandpassFilter(DEFAULT_SAMPLE_RATE, 300, 1000),
-                                 BandpassFilter(DEFAULT_SAMPLE_RATE, 1000, 3000),
-                                 BandpassFilter(DEFAULT_SAMPLE_RATE, 3000, 6000)
-                         } {
+    HearingAmpEngine()
+            : mInputBuffer(BUFFER_SIZE_FRAMES * DEFAULT_CHANNEL_COUNT),
+              mOutputBuffer(BUFFER_SIZE_FRAMES * DEFAULT_CHANNEL_COUNT),
+              mAmplification(2.0f),
+              mFilters{
+                      BandpassFilter(DEFAULT_SAMPLE_RATE, 20, 300),
+                      BandpassFilter(DEFAULT_SAMPLE_RATE, 300, 1000),
+                      BandpassFilter(DEFAULT_SAMPLE_RATE, 1000, 3000),
+                      BandpassFilter(DEFAULT_SAMPLE_RATE, 3000, 6000)
+              } {
         setupWDRC();
     }
 
@@ -118,13 +118,23 @@ public:
         float *data = static_cast<float*>(audioData);
 
         if (stream->getDirection() == oboe::Direction::Input) {
-            LOGD("Input callback: Processing %d frames", numFrames);
-            mInputBuffer.write(data, numFrames * stream->getChannelCount());
-            LOGD("Input buffer size after write: %zu", mInputBuffer.size());
+            std::vector<float> processedBuffer(numFrames * stream->getChannelCount(), 0.0f);
+
+            for (int band = 0; band < NUM_BANDS; ++band) {
+                for (int i = 0; i < numFrames * stream->getChannelCount(); ++i) {
+                    float filteredSample = mFilters[band].process(data[i]);
+                    float processedSample = applyWDRC(filteredSample, band);
+                    processedBuffer[i] += processedSample / NUM_BANDS;
+                }
+            }
+
+            for (int i = 0; i < numFrames * stream->getChannelCount(); ++i) {
+                processedBuffer[i] = std::clamp(processedBuffer[i] * mAmplification, -1.0f, 1.0f);
+            }
+
+            mOutputBuffer.write(processedBuffer.data(), numFrames * stream->getChannelCount());
         } else if (stream->getDirection() == oboe::Direction::Output) {
             size_t framesRead = mOutputBuffer.read(data, numFrames * stream->getChannelCount());
-            LOGD("Output callback: Read %zu frames out of %d requested", framesRead / stream->getChannelCount(), numFrames);
-
             if (framesRead < numFrames * stream->getChannelCount()) {
                 std::fill(data + framesRead, data + numFrames * stream->getChannelCount(), 0.0f);
             }
@@ -143,27 +153,13 @@ public:
         LOGD("WDRC parameters updated");
     }
 
-    void startProcessing() {
-        mIsProcessing = true;
-        mProcessingThread = std::thread(&HearingAmpEngine::processAudio, this);
-    }
-
-    void stopProcessing() {
-        mIsProcessing = false;
-        if (mProcessingThread.joinable()) {
-            mProcessingThread.join();
-        }
-    }
-
 private:
     AudioRingBuffer mInputBuffer;
     AudioRingBuffer mOutputBuffer;
     float mAmplification;
-    std::atomic<bool> mIsProcessing;
-    std::thread mProcessingThread;
+    std::array<BandpassFilter, NUM_BANDS> mFilters;
     std::array<WDRCParams, NUM_BANDS> mWDRCParams;
     std::mutex mParamMutex;
-    std::array<BandpassFilter, NUM_BANDS> mFilters;
     std::array<float, NUM_BANDS> mEnvelopes;
 
     void setupWDRC() {
@@ -193,32 +189,6 @@ private:
         }
 
         return input * gainLinear * compressionGain;
-    }
-
-    void processAudio() {
-        std::vector<float> tempBuffer(FRAMES_PER_CALLBACK * DEFAULT_CHANNEL_COUNT);
-        std::vector<float> processedBuffer(FRAMES_PER_CALLBACK * DEFAULT_CHANNEL_COUNT);
-
-        while (mIsProcessing) {
-            size_t framesRead = mInputBuffer.read(tempBuffer.data(), tempBuffer.size());
-            if (framesRead > 0) {
-                std::fill(processedBuffer.begin(), processedBuffer.end(), 0.0f);
-
-                for (int band = 0; band < NUM_BANDS; ++band) {
-                    for (size_t i = 0; i < framesRead; ++i) {
-                        float filteredSample = mFilters[band].process(tempBuffer[i]);
-                        float processedSample = applyWDRC(filteredSample, band);
-                        processedBuffer[i] += processedSample / NUM_BANDS;
-                    }
-                }
-
-                for (size_t i = 0; i < framesRead; ++i) {
-                    processedBuffer[i] = std::clamp(processedBuffer[i] * mAmplification, -1.0f, 1.0f);
-                }
-
-                mOutputBuffer.write(processedBuffer.data(), framesRead);
-            }
-        }
     }
 };
 
@@ -282,17 +252,12 @@ Java_com_auditapp_hearingamp_AudioProcessingService_startAudioProcessing(JNIEnv 
         return -1;
     }
 
-    engine->startProcessing();
-
     LOGD("Audio processing started successfully");
     return 0;
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_auditapp_hearingamp_AudioProcessingService_stopAudioProcessing(JNIEnv *env, jobject /* this */) {
-    if (engine) {
-        engine->stopProcessing();
-    }
     if (inputStream) {
         inputStream->requestStop();
         inputStream->close();
