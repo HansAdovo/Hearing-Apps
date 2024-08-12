@@ -60,6 +60,7 @@
 
         <service
             android:name=".AudioProcessingService"
+            android:enabled="true"
             android:exported="false" />
 
     </application>

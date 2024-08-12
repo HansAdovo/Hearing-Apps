@@ -8,25 +8,16 @@
 #include <mutex>
 #include <atomic>
 #include <thread>
-#include <deque>
 #include <array>
 #include <condition_variable>
 #include <chrono>
 #include <memory>
-#define TIME_FUNCTION(func, label) \
-    { \
-        auto start = std::chrono::high_resolution_clock::now(); \
-        func; \
-        auto end = std::chrono::high_resolution_clock::now(); \
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start); \
-        LOGV("%s took %lld microseconds", label, duration.count()); \
-    }
 
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "hearingamp", __VA_ARGS__)
-#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, "hearingamp", __VA_ARGS__)
-#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "hearingamp", __VA_ARGS__)
-#define LOGV(...) __android_log_print(ANDROID_LOG_VERBOSE, "hearingamp", __VA_ARGS__)
 #define LOGW(...) __android_log_print(ANDROID_LOG_WARN, "hearingamp", __VA_ARGS__)
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "hearingamp", __VA_ARGS__)
+#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, "hearingamp", __VA_ARGS__)
+#define LOGV(...) __android_log_print(ANDROID_LOG_VERBOSE, "hearingamp", __VA_ARGS__)
 
 constexpr int DEFAULT_SAMPLE_RATE = 48000;
 constexpr int DEFAULT_CHANNEL_COUNT = 2;
@@ -42,39 +33,70 @@ struct WDRCParams {
     float gain;
 };
 
+std::atomic<bool> gErrorFlag{false};
+
+void setErrorFlag() {
+    gErrorFlag.store(true, std::memory_order_relaxed);
+}
+
+bool checkAndResetErrorFlag() {
+    return gErrorFlag.exchange(false, std::memory_order_relaxed);
+}
+
 class AudioRingBuffer {
 public:
-    AudioRingBuffer(size_t capacity) : mCapacity(capacity) {}
+    AudioRingBuffer(size_t capacity) : mCapacity(capacity), mBuffer(capacity) {}
 
     void write(const float* data, size_t size) {
-        std::unique_lock<std::mutex> lock(mMutex);
+        if (!data) {
+            LOGE("Attempting to write null data to AudioRingBuffer");
+            setErrorFlag();
+            return;
+        }
+        std::lock_guard<std::mutex> lock(mMutex);
         for (size_t i = 0; i < size; ++i) {
-            mBuffer.push_back(data[i]);
-            if (mBuffer.size() > mCapacity) {
-                mBuffer.pop_front();
+            mBuffer[mWriteIndex] = data[i];
+            mWriteIndex = (mWriteIndex + 1) % mCapacity;
+            if (mSize < mCapacity) {
+                ++mSize;
+            } else {
+                mReadIndex = (mReadIndex + 1) % mCapacity;
             }
         }
-        lock.unlock();
         mCondVar.notify_one();
     }
 
     size_t read(float* data, size_t size) {
+        if (!data) {
+            LOGE("Attempting to read into null buffer from AudioRingBuffer");
+            setErrorFlag();
+            return 0;
+        }
         std::unique_lock<std::mutex> lock(mMutex);
-        mCondVar.wait(lock, [this] { return !mBuffer.empty(); });
-        size_t read = std::min(size, mBuffer.size());
-        std::copy(mBuffer.begin(), mBuffer.begin() + read, data);
-        mBuffer.erase(mBuffer.begin(), mBuffer.begin() + read);
+        if (!mCondVar.wait_for(lock, std::chrono::milliseconds(100), [this] { return mSize > 0; })) {
+            LOGW("Timeout waiting for data in AudioRingBuffer");
+            return 0;
+        }
+        size_t read = std::min(size, mSize);
+        for (size_t i = 0; i < read; ++i) {
+            data[i] = mBuffer[mReadIndex];
+            mReadIndex = (mReadIndex + 1) % mCapacity;
+        }
+        mSize -= read;
         return read;
     }
 
     size_t size() const {
         std::lock_guard<std::mutex> lock(mMutex);
-        return mBuffer.size();
+        return mSize;
     }
 
 private:
-    std::deque<float> mBuffer;
+    std::vector<float> mBuffer;
     size_t mCapacity;
+    size_t mSize = 0;
+    size_t mReadIndex = 0;
+    size_t mWriteIndex = 0;
     mutable std::mutex mMutex;
     std::condition_variable mCondVar;
 };
@@ -128,49 +150,58 @@ public:
     }
 
     oboe::DataCallbackResult onAudioReady(oboe::AudioStream *stream, void *audioData, int32_t numFrames) override {
-        auto start = std::chrono::high_resolution_clock::now();
+        if (checkAndResetErrorFlag()) {
+            LOGE("Error detected, stopping audio processing");
+            return oboe::DataCallbackResult::Stop;
+        }
+
+        if (!stream || !audioData) {
+            LOGE("Invalid stream or audioData in onAudioReady");
+            return oboe::DataCallbackResult::Stop;
+        }
+
         float *data = static_cast<float*>(audioData);
+        int32_t channelCount = stream->getChannelCount();
+        size_t totalFrames = numFrames * channelCount;
 
         if (!mIsProcessing) {
             LOGD("Processing stopped, returning Stop");
             return oboe::DataCallbackResult::Stop;
         }
 
-        if (stream == nullptr) {
-            LOGE("Stream is null in onAudioReady");
-            return oboe::DataCallbackResult::Stop;
-        }
-
         if (stream->getDirection() == oboe::Direction::Input) {
-            std::vector<float> processedBuffer(numFrames * stream->getChannelCount(), 0.0f);
+            std::vector<float> processedBuffer(totalFrames, 0.0f);
 
-            TIME_FUNCTION({
-                              for (int i = 0; i < numFrames; ++i) {
-                                  for (int channel = 0; channel < stream->getChannelCount(); ++channel) {
-                                      if (i * stream->getChannelCount() + channel >= numFrames * stream->getChannelCount()) {
-                                          LOGE("Buffer overflow in input processing");
-                                          return oboe::DataCallbackResult::Stop;
-                                      }
-                                      float sample = data[i * stream->getChannelCount() + channel];
-                                      float processedSample = 0.0f;
-                                      for (int band = 0; band < NUM_BANDS; ++band) {
-                                          float filteredSample = mFilters[band].process(sample);
-                                          processedSample += applyWDRC(filteredSample, band, channel) / NUM_BANDS;
-                                      }
-                                      processedBuffer[i * stream->getChannelCount() + channel] = std::clamp(processedSample * mAmplification, -1.0f, 1.0f);
-                                  }
-                              }
-                          }, "WDRC and filtering");
+            for (int i = 0; i < numFrames; ++i) {
+                for (int channel = 0; channel < channelCount; ++channel) {
+                    size_t index = i * channelCount + channel;
+                    if (index >= totalFrames) {
+                        LOGE("Buffer overflow in input processing");
+                        return oboe::DataCallbackResult::Stop;
+                    }
+                    float sample = data[index];
+                    float processedSample = 0.0f;
+                    for (int band = 0; band < NUM_BANDS; ++band) {
+                        float filteredSample = mFilters[band].process(sample);
+                        processedSample += applyWDRC(filteredSample, band, channel) / NUM_BANDS;
+                    }
+                    processedBuffer[index] = std::clamp(processedSample * mAmplification, -1.0f, 1.0f);
+                }
+            }
 
-            mOutputBuffer.write(processedBuffer.data(), numFrames * stream->getChannelCount());
-
+            mOutputBuffer.write(processedBuffer.data(), processedBuffer.size());
             LOGV("Input processed: %d frames, buffer size: %zu", numFrames, mOutputBuffer.size());
         } else if (stream->getDirection() == oboe::Direction::Output) {
-            size_t framesRead = mOutputBuffer.read(data, numFrames * stream->getChannelCount());
-            if (framesRead < numFrames * stream->getChannelCount()) {
-                std::fill(data + framesRead, data + numFrames * stream->getChannelCount(), 0.0f);
-                LOGW("Buffer underrun: read %zu frames, expected %d. Buffer size: %zu",
-                     framesRead, numFrames * stream->getChannelCount(), mOutputBuffer.size());
+            size_t framesRead = mOutputBuffer.read(data, totalFrames);
+            if (framesRead < totalFrames) {
+                size_t remainingFrames = totalFrames - framesRead;
+                if (remainingFrames > totalFrames) {
+                    LOGE("Buffer overflow in onAudioReady");
+                    return oboe::DataCallbackResult::Stop;
+                }
+                std::fill(data + framesRead, data + totalFrames, 0.0f);
+                LOGW("Buffer underrun: read %zu frames, expected %zu. Buffer size: %zu",
+                     framesRead, totalFrames, mOutputBuffer.size());
             }
             LOGV("Output delivered: %zu frames", framesRead);
         } else {
@@ -178,15 +209,7 @@ public:
             return oboe::DataCallbackResult::Stop;
         }
 
-        auto end = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-        LOGV("onAudioReady processing time: %lld microseconds", duration.count());
-
         return oboe::DataCallbackResult::Continue;
-    }
-
-    void setAmplification(float amp) {
-        mAmplification = amp;
     }
 
     void updateParams(const std::array<WDRCParams, NUM_BANDS>& leftParams, const std::array<WDRCParams, NUM_BANDS>& rightParams) {
@@ -199,6 +222,11 @@ public:
     void stopProcessing() {
         std::lock_guard<std::mutex> lock(mProcessingMutex);
         mIsProcessing = false;
+    }
+
+    void startProcessing() {
+        std::lock_guard<std::mutex> lock(mProcessingMutex);
+        mIsProcessing = true;
     }
 
 private:
@@ -224,6 +252,7 @@ private:
     float applyWDRC(float input, int band, int channel) {
         if (band < 0 || band >= NUM_BANDS || channel < 0 || channel >= 2) {
             LOGE("Invalid band or channel in applyWDRC: band=%d, channel=%d", band, channel);
+            setErrorFlag();
             return input;
         }
 
@@ -254,7 +283,7 @@ static std::shared_ptr<oboe::AudioStream> inputStream;
 static std::shared_ptr<oboe::AudioStream> outputStream;
 
 extern "C" JNIEXPORT jint JNICALL
-Java_com_auditapp_hearingamp_AudioProcessingService_startAudioProcessing(JNIEnv *env, jobject /* this */) {
+Java_com_auditapp_hearingamp_AudioProcessingService_nativeStartAudioProcessing(JNIEnv *env, jobject /* this */) {
     LOGD("Starting audio processing");
 
     if (engine != nullptr) {
@@ -334,17 +363,17 @@ Java_com_auditapp_hearingamp_AudioProcessingService_startAudioProcessing(JNIEnv 
         return -1;
     }
 
+    engine->startProcessing();
+
     LOGD("Audio processing started successfully");
     return 0;
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_auditapp_hearingamp_AudioProcessingService_stopAudioProcessing(JNIEnv *env, jobject /* this */) {
+Java_com_auditapp_hearingamp_AudioProcessingService_nativeStopAudioProcessing(JNIEnv *env, jobject /* this */) {
     if (engine) {
         engine->stopProcessing();
-    }
 
-    std::thread cleanup_thread([]() {
         if (inputStream) {
             LOGD("Stopping input stream with sample rate: %d, channels: %d", inputStream->getSampleRate(), inputStream->getChannelCount());
             inputStream->requestStop();
@@ -360,29 +389,40 @@ Java_com_auditapp_hearingamp_AudioProcessingService_stopAudioProcessing(JNIEnv *
         delete engine;
         engine = nullptr;
         LOGD("Audio processing stopped and cleaned up");
-    });
-    cleanup_thread.detach();
-}
-
-extern "C" JNIEXPORT void JNICALL
-Java_com_auditapp_hearingamp_AudioProcessingService_setAmplification(JNIEnv *env, jobject /* this */, jfloat amp) {
-    if (engine) {
-        engine->setAmplification(amp);
-        LOGD("Amplification set to %.2f", amp);
     } else {
-        LOGE("Engine is not initialized");
+        LOGW("Engine is already stopped or not initialized");
     }
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_auditapp_hearingamp_AudioProcessingService_updateAudioParams(JNIEnv *env, jobject /* this */,
-                                                                      jfloatArray leftThresholds,
-                                                                      jfloatArray rightThresholds,
-                                                                      jfloatArray leftGains,
-                                                                      jfloatArray rightGains,
-                                                                      jfloatArray ratios,
-                                                                      jfloatArray attacks,
-                                                                      jfloatArray releases) {
+Java_com_auditapp_hearingamp_AudioProcessingService_nativeStartProcessing(JNIEnv *env, jobject /* this */) {
+    if (engine != nullptr) {
+        LOGD("Starting audio processing");
+        engine->startProcessing();
+    } else {
+        LOGE("Engine is not initialized. Call startAudioProcessing first.");
+    }
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_auditapp_hearingamp_AudioProcessingService_nativeStopProcessing(JNIEnv *env, jobject /* this */) {
+    if (engine) {
+        engine->stopProcessing();
+        LOGD("Audio processing stopped");
+    } else {
+        LOGW("Engine is already stopped or not initialized");
+    }
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_auditapp_hearingamp_AudioProcessingService_nativeUpdateAudioParams(JNIEnv *env, jobject /* this */,
+                                                                            jfloatArray leftThresholds,
+                                                                            jfloatArray rightThresholds,
+                                                                            jfloatArray leftGains,
+                                                                            jfloatArray rightGains,
+                                                                            jfloatArray ratios,
+                                                                            jfloatArray attacks,
+                                                                            jfloatArray releases) {
     if (engine == nullptr) {
         LOGE("Engine is not initialized");
         return;
