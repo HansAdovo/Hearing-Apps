@@ -11,15 +11,27 @@
 #include <deque>
 #include <array>
 #include <condition_variable>
+#include <chrono>
+#include <memory>
+#define TIME_FUNCTION(func, label) \
+    { \
+        auto start = std::chrono::high_resolution_clock::now(); \
+        func; \
+        auto end = std::chrono::high_resolution_clock::now(); \
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start); \
+        LOGV("%s took %lld microseconds", label, duration.count()); \
+    }
 
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, "hearingamp", __VA_ARGS__)
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, "hearingamp", __VA_ARGS__)
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "hearingamp", __VA_ARGS__)
+#define LOGV(...) __android_log_print(ANDROID_LOG_VERBOSE, "hearingamp", __VA_ARGS__)
+#define LOGW(...) __android_log_print(ANDROID_LOG_WARN, "hearingamp", __VA_ARGS__)
 
 constexpr int DEFAULT_SAMPLE_RATE = 48000;
 constexpr int DEFAULT_CHANNEL_COUNT = 2;
 constexpr int FRAMES_PER_CALLBACK = 64;
-constexpr int BUFFER_SIZE_FRAMES = 1024;
+constexpr int BUFFER_SIZE_FRAMES = 512;
 constexpr int NUM_BANDS = 4;
 
 struct WDRCParams {
@@ -112,37 +124,63 @@ public:
                       BandpassFilter(DEFAULT_SAMPLE_RATE, 3000, 6000)
               } {
         setupWDRC();
+        LOGD("HearingAmpEngine constructed with BUFFER_SIZE_FRAMES=%d, FRAMES_PER_CALLBACK=%d", BUFFER_SIZE_FRAMES, FRAMES_PER_CALLBACK);
     }
 
     oboe::DataCallbackResult onAudioReady(oboe::AudioStream *stream, void *audioData, int32_t numFrames) override {
+        auto start = std::chrono::high_resolution_clock::now();
         float *data = static_cast<float*>(audioData);
 
         if (!mIsProcessing) {
+            LOGD("Processing stopped, returning Stop");
+            return oboe::DataCallbackResult::Stop;
+        }
+
+        if (stream == nullptr) {
+            LOGE("Stream is null in onAudioReady");
             return oboe::DataCallbackResult::Stop;
         }
 
         if (stream->getDirection() == oboe::Direction::Input) {
             std::vector<float> processedBuffer(numFrames * stream->getChannelCount(), 0.0f);
 
-            for (int band = 0; band < NUM_BANDS; ++band) {
-                for (int i = 0; i < numFrames * stream->getChannelCount(); ++i) {
-                    float filteredSample = mFilters[band].process(data[i]);
-                    float processedSample = applyWDRC(filteredSample, band);
-                    processedBuffer[i] += processedSample / NUM_BANDS;
-                }
-            }
-
-            for (int i = 0; i < numFrames * stream->getChannelCount(); ++i) {
-                processedBuffer[i] = std::clamp(processedBuffer[i] * mAmplification, -1.0f, 1.0f);
-            }
+            TIME_FUNCTION({
+                              for (int i = 0; i < numFrames; ++i) {
+                                  for (int channel = 0; channel < stream->getChannelCount(); ++channel) {
+                                      if (i * stream->getChannelCount() + channel >= numFrames * stream->getChannelCount()) {
+                                          LOGE("Buffer overflow in input processing");
+                                          return oboe::DataCallbackResult::Stop;
+                                      }
+                                      float sample = data[i * stream->getChannelCount() + channel];
+                                      float processedSample = 0.0f;
+                                      for (int band = 0; band < NUM_BANDS; ++band) {
+                                          float filteredSample = mFilters[band].process(sample);
+                                          processedSample += applyWDRC(filteredSample, band, channel) / NUM_BANDS;
+                                      }
+                                      processedBuffer[i * stream->getChannelCount() + channel] = std::clamp(processedSample * mAmplification, -1.0f, 1.0f);
+                                  }
+                              }
+                          }, "WDRC and filtering");
 
             mOutputBuffer.write(processedBuffer.data(), numFrames * stream->getChannelCount());
+
+            LOGV("Input processed: %d frames, buffer size: %zu", numFrames, mOutputBuffer.size());
         } else if (stream->getDirection() == oboe::Direction::Output) {
             size_t framesRead = mOutputBuffer.read(data, numFrames * stream->getChannelCount());
             if (framesRead < numFrames * stream->getChannelCount()) {
                 std::fill(data + framesRead, data + numFrames * stream->getChannelCount(), 0.0f);
+                LOGW("Buffer underrun: read %zu frames, expected %d. Buffer size: %zu",
+                     framesRead, numFrames * stream->getChannelCount(), mOutputBuffer.size());
             }
+            LOGV("Output delivered: %zu frames", framesRead);
+        } else {
+            LOGE("Unknown stream direction");
+            return oboe::DataCallbackResult::Stop;
         }
+
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+        LOGV("onAudioReady processing time: %lld microseconds", duration.count());
 
         return oboe::DataCallbackResult::Continue;
     }
@@ -151,10 +189,11 @@ public:
         mAmplification = amp;
     }
 
-    void updateParams(const std::array<WDRCParams, NUM_BANDS>& newParams) {
+    void updateParams(const std::array<WDRCParams, NUM_BANDS>& leftParams, const std::array<WDRCParams, NUM_BANDS>& rightParams) {
         std::lock_guard<std::mutex> lock(mParamMutex);
-        mWDRCParams = newParams;
-        LOGD("WDRC parameters updated");
+        mWDRCParams[0] = leftParams;
+        mWDRCParams[1] = rightParams;
+        LOGD("WDRC parameters updated for both ears");
     }
 
     void stopProcessing() {
@@ -167,22 +206,29 @@ private:
     AudioRingBuffer mOutputBuffer;
     float mAmplification;
     std::array<BandpassFilter, NUM_BANDS> mFilters;
-    std::array<WDRCParams, NUM_BANDS> mWDRCParams;
+    std::array<std::array<WDRCParams, NUM_BANDS>, 2> mWDRCParams;  // [0] for left, [1] for right
     std::mutex mParamMutex;
-    std::array<float, NUM_BANDS> mEnvelopes;
+    std::array<std::array<float, NUM_BANDS>, 2> mEnvelopes;  // [0] for left, [1] for right
     std::atomic<bool> mIsProcessing{true};
     std::mutex mProcessingMutex;
 
     void setupWDRC() {
-        for (int i = 0; i < NUM_BANDS; ++i) {
-            mWDRCParams[i] = {-40.0f + i * 5.0f, 3.0f + i * 0.5f, 0.01f, 0.1f, 10.0f};
-            mEnvelopes[i] = 0.0f;
+        for (int ear = 0; ear < 2; ++ear) {
+            for (int i = 0; i < NUM_BANDS; ++i) {
+                mWDRCParams[ear][i] = {-40.0f + i * 5.0f, 3.0f + i * 0.5f, 0.01f, 0.1f, 10.0f};
+                mEnvelopes[ear][i] = 0.0f;
+            }
         }
     }
 
-    float applyWDRC(float input, int band) {
-        float& envelope = mEnvelopes[band];
-        const WDRCParams& params = mWDRCParams[band];
+    float applyWDRC(float input, int band, int channel) {
+        if (band < 0 || band >= NUM_BANDS || channel < 0 || channel >= 2) {
+            LOGE("Invalid band or channel in applyWDRC: band=%d, channel=%d", band, channel);
+            return input;
+        }
+
+        float& envelope = mEnvelopes[channel][band];
+        const WDRCParams& params = mWDRCParams[channel][band];
 
         float alphaAttack = std::exp(-1.0f / (DEFAULT_SAMPLE_RATE * params.attack_time));
         float alphaRelease = std::exp(-1.0f / (DEFAULT_SAMPLE_RATE * params.release_time));
@@ -209,12 +255,19 @@ static std::shared_ptr<oboe::AudioStream> outputStream;
 
 extern "C" JNIEXPORT jint JNICALL
 Java_com_auditapp_hearingamp_AudioProcessingService_startAudioProcessing(JNIEnv *env, jobject /* this */) {
-    if (engine == nullptr) {
-        engine = new HearingAmpEngine();
-    } else {
-        engine->stopProcessing();  // Ensure any previous processing is stopped
+    LOGD("Starting audio processing");
+
+    if (engine != nullptr) {
+        LOGW("Engine already exists, stopping previous instance");
+        engine->stopProcessing();
         delete engine;
+    }
+
+    try {
         engine = new HearingAmpEngine();
+    } catch (const std::exception& e) {
+        LOGE("Failed to create HearingAmpEngine: %s", e.what());
+        return -1;
     }
 
     oboe::AudioStreamBuilder builder;
@@ -232,6 +285,8 @@ Java_com_auditapp_hearingamp_AudioProcessingService_startAudioProcessing(JNIEnv 
     oboe::Result result = builder.openStream(inputStream);
     if (result != oboe::Result::OK) {
         LOGE("Failed to open input stream. Error: %s", oboe::convertToText(result));
+        delete engine;
+        engine = nullptr;
         return -1;
     }
 
@@ -249,6 +304,9 @@ Java_com_auditapp_hearingamp_AudioProcessingService_startAudioProcessing(JNIEnv 
     result = builder.openStream(outputStream);
     if (result != oboe::Result::OK) {
         LOGE("Failed to open output stream. Error: %s", oboe::convertToText(result));
+        inputStream->close();
+        delete engine;
+        engine = nullptr;
         return -1;
     }
 
@@ -258,6 +316,10 @@ Java_com_auditapp_hearingamp_AudioProcessingService_startAudioProcessing(JNIEnv 
     result = inputStream->requestStart();
     if (result != oboe::Result::OK) {
         LOGE("Failed to start input stream. Error: %s", oboe::convertToText(result));
+        inputStream->close();
+        outputStream->close();
+        delete engine;
+        engine = nullptr;
         return -1;
     }
 
@@ -265,6 +327,10 @@ Java_com_auditapp_hearingamp_AudioProcessingService_startAudioProcessing(JNIEnv 
     if (result != oboe::Result::OK) {
         LOGE("Failed to start output stream. Error: %s", oboe::convertToText(result));
         inputStream->requestStop();
+        inputStream->close();
+        outputStream->close();
+        delete engine;
+        engine = nullptr;
         return -1;
     }
 
@@ -280,11 +346,13 @@ Java_com_auditapp_hearingamp_AudioProcessingService_stopAudioProcessing(JNIEnv *
 
     std::thread cleanup_thread([]() {
         if (inputStream) {
+            LOGD("Stopping input stream with sample rate: %d, channels: %d", inputStream->getSampleRate(), inputStream->getChannelCount());
             inputStream->requestStop();
             inputStream->close();
             inputStream.reset();
         }
         if (outputStream) {
+            LOGD("Stopping output stream with sample rate: %d, channels: %d", outputStream->getSampleRate(), outputStream->getChannelCount());
             outputStream->requestStop();
             outputStream->close();
             outputStream.reset();
@@ -308,43 +376,72 @@ Java_com_auditapp_hearingamp_AudioProcessingService_setAmplification(JNIEnv *env
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_auditapp_hearingamp_AudioProcessingService_updateAudioParams(JNIEnv *env, jobject /* this */,
-                                                                      jfloatArray thresholds,
+                                                                      jfloatArray leftThresholds,
+                                                                      jfloatArray rightThresholds,
+                                                                      jfloatArray leftGains,
+                                                                      jfloatArray rightGains,
                                                                       jfloatArray ratios,
                                                                       jfloatArray attacks,
-                                                                      jfloatArray releases,
-                                                                      jfloatArray gains) {
+                                                                      jfloatArray releases) {
     if (engine == nullptr) {
         LOGE("Engine is not initialized");
         return;
     }
 
-    jfloat* thresholdPtr = env->GetFloatArrayElements(thresholds, nullptr);
+    if (env->GetArrayLength(leftThresholds) != NUM_BANDS ||
+        env->GetArrayLength(rightThresholds) != NUM_BANDS ||
+        env->GetArrayLength(leftGains) != NUM_BANDS ||
+        env->GetArrayLength(rightGains) != NUM_BANDS ||
+        env->GetArrayLength(ratios) != NUM_BANDS ||
+        env->GetArrayLength(attacks) != NUM_BANDS ||
+        env->GetArrayLength(releases) != NUM_BANDS) {
+        LOGE("Invalid array length in updateAudioParams");
+        return;
+    }
+
+    jfloat* leftThresholdPtr = env->GetFloatArrayElements(leftThresholds, nullptr);
+    jfloat* rightThresholdPtr = env->GetFloatArrayElements(rightThresholds, nullptr);
+    jfloat* leftGainPtr = env->GetFloatArrayElements(leftGains, nullptr);
+    jfloat* rightGainPtr = env->GetFloatArrayElements(rightGains, nullptr);
     jfloat* ratioPtr = env->GetFloatArrayElements(ratios, nullptr);
     jfloat* attackPtr = env->GetFloatArrayElements(attacks, nullptr);
     jfloat* releasePtr = env->GetFloatArrayElements(releases, nullptr);
-    jfloat* gainPtr = env->GetFloatArrayElements(gains, nullptr);
 
-    std::array<WDRCParams, NUM_BANDS> newParams;
+    if (!leftThresholdPtr || !rightThresholdPtr || !leftGainPtr || !rightGainPtr || !ratioPtr || !attackPtr || !releasePtr) {
+        LOGE("Failed to get float array elements in updateAudioParams");
+        return;
+    }
+
+    std::array<WDRCParams, NUM_BANDS> leftParams, rightParams;
     for (int i = 0; i < NUM_BANDS; ++i) {
-        newParams[i] = {
-                thresholdPtr[i],
+        leftParams[i] = {
+                leftThresholdPtr[i],
                 ratioPtr[i],
                 attackPtr[i],
                 releasePtr[i],
-                gainPtr[i]
+                leftGainPtr[i]
         };
-        LOGD("Band %d: Threshold=%.2f, Ratio=%.2f, Attack=%.2f, Release=%.2f, Gain=%.2f",
-             i, newParams[i].threshold, newParams[i].ratio, newParams[i].attack_time,
-             newParams[i].release_time, newParams[i].gain);
+        rightParams[i] = {
+                rightThresholdPtr[i],
+                ratioPtr[i],
+                attackPtr[i],
+                releasePtr[i],
+                rightGainPtr[i]
+        };
+        LOGD("Band %d: Left Threshold=%.2f, Right Threshold=%.2f, Ratio=%.2f, Attack=%.2f, Release=%.2f, Left Gain=%.2f, Right Gain=%.2f",
+             i, leftParams[i].threshold, rightParams[i].threshold, leftParams[i].ratio,
+             leftParams[i].attack_time, leftParams[i].release_time, leftParams[i].gain, rightParams[i].gain);
     }
 
-    engine->updateParams(newParams);
+    engine->updateParams(leftParams, rightParams);
 
-    env->ReleaseFloatArrayElements(thresholds, thresholdPtr, JNI_ABORT);
+    env->ReleaseFloatArrayElements(leftThresholds, leftThresholdPtr, JNI_ABORT);
+    env->ReleaseFloatArrayElements(rightThresholds, rightThresholdPtr, JNI_ABORT);
+    env->ReleaseFloatArrayElements(leftGains, leftGainPtr, JNI_ABORT);
+    env->ReleaseFloatArrayElements(rightGains, rightGainPtr, JNI_ABORT);
     env->ReleaseFloatArrayElements(ratios, ratioPtr, JNI_ABORT);
     env->ReleaseFloatArrayElements(attacks, attackPtr, JNI_ABORT);
     env->ReleaseFloatArrayElements(releases, releasePtr, JNI_ABORT);
-    env->ReleaseFloatArrayElements(gains, gainPtr, JNI_ABORT);
 
-    LOGD("Audio processing parameters updated");
+    LOGD("Audio processing parameters updated for both ears");
 }

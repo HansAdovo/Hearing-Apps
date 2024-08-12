@@ -99,4 +99,5 @@
     <string name="error_starting_amplification">Error starting amplification</string>
     <string name="microphone_permission_denied">Microphone permission denied</string>
     <string name="audio_processing_error">Audio processing error</string>
+    <string name="audio_processing_parameters_saved">Audio processing parameters saved</string>
 </resources>

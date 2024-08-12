@@ -8,9 +8,12 @@ import android.util.Log;
 
 import androidx.core.app.ActivityCompat;
 
+import java.util.Arrays;
+
 public class AudioProcessingService extends Service {
     private static final String TAG = "AudioProcessingService";
     private boolean isProcessing = false;
+    private float[] storedLeftThresholds, storedRightThresholds, storedLeftGains, storedRightGains, storedRatios, storedAttacks, storedReleases;
 
     public static final String ACTION_PERMISSIONS_REQUIRED = "com.auditapp.hearingamp.ACTION_PERMISSIONS_REQUIRED";
     public static final String ACTION_PROCESSING_ERROR = "com.auditapp.hearingamp.ACTION_PROCESSING_ERROR";
@@ -23,7 +26,9 @@ public class AudioProcessingService extends Service {
 
     private native int startAudioProcessing();
     private native void stopAudioProcessing();
-    private native void updateAudioParams(float[] thresholds, float[] ratios, float[] attacks, float[] releases, float[] gains);
+    private native void updateAudioParams(float[] leftThresholds, float[] rightThresholds,
+                                          float[] leftGains, float[] rightGains,
+                                          float[] ratios, float[] attacks, float[] releases);
     private native void setAmplification(float amp);
 
     @Override
@@ -38,10 +43,8 @@ public class AudioProcessingService extends Service {
             String action = intent.getAction();
             if (ACTION_UPDATE_PARAMS.equals(action)) {
                 updateParamsFromIntent(intent);
-                return START_STICKY;
             } else if (ACTION_SET_AMPLIFICATION.equals(action)) {
                 setAmplificationFromIntent(intent);
-                return START_STICKY;
             }
         }
 
@@ -70,6 +73,7 @@ public class AudioProcessingService extends Service {
             if (result == 0) {
                 isProcessing = true;
                 Log.d(TAG, "Audio processing started successfully");
+                applyStoredParams();  // Apply stored parameters
             } else {
                 Log.e(TAG, "Failed to start audio processing. Error code: " + result);
                 sendBroadcast(new Intent(ACTION_PROCESSING_ERROR));
@@ -83,16 +87,69 @@ public class AudioProcessingService extends Service {
     }
 
     private void updateParamsFromIntent(Intent intent) {
-        float[] thresholds = intent.getFloatArrayExtra("thresholds");
+        Log.d(TAG, "Received UPDATE_PARAMS intent");
+        float[] leftThresholds = intent.getFloatArrayExtra("leftThresholds");
+        float[] rightThresholds = intent.getFloatArrayExtra("rightThresholds");
+        float[] leftGains = intent.getFloatArrayExtra("leftGains");
+        float[] rightGains = intent.getFloatArrayExtra("rightGains");
         float[] ratios = intent.getFloatArrayExtra("ratios");
         float[] attacks = intent.getFloatArrayExtra("attacks");
         float[] releases = intent.getFloatArrayExtra("releases");
-        float[] gains = intent.getFloatArrayExtra("gains");
 
-        if (thresholds != null && ratios != null && attacks != null && releases != null && gains != null) {
-            updateParams(thresholds, ratios, attacks, releases, gains);
+        if (leftThresholds != null && rightThresholds != null && leftGains != null && rightGains != null &&
+                ratios != null && attacks != null && releases != null) {
+            Log.d(TAG, "Received parameters:");
+            Log.d(TAG, "Left Thresholds: " + Arrays.toString(leftThresholds));
+            Log.d(TAG, "Right Thresholds: " + Arrays.toString(rightThresholds));
+            Log.d(TAG, "Left Gains: " + Arrays.toString(leftGains));
+            Log.d(TAG, "Right Gains: " + Arrays.toString(rightGains));
+            Log.d(TAG, "Ratios: " + Arrays.toString(ratios));
+            Log.d(TAG, "Attacks: " + Arrays.toString(attacks));
+            Log.d(TAG, "Releases: " + Arrays.toString(releases));
+            updateParams(leftThresholds, rightThresholds, leftGains, rightGains, ratios, attacks, releases);
         } else {
             Log.e(TAG, "Invalid parameters received in intent");
+        }
+        if (isProcessing) {
+            applyStoredParams();
+        } else {
+            Log.d(TAG, "Parameters stored. Will be applied when processing starts.");
+        }
+    }
+
+    private void applyStoredParams() {
+        if (storedLeftThresholds != null) {
+            Log.d(TAG, "Applying stored parameters:");
+            Log.d(TAG, "Left Thresholds: " + Arrays.toString(storedLeftThresholds));
+            Log.d(TAG, "Right Thresholds: " + Arrays.toString(storedRightThresholds));
+            Log.d(TAG, "Left Gains: " + Arrays.toString(storedLeftGains));
+            Log.d(TAG, "Right Gains: " + Arrays.toString(storedRightGains));
+            Log.d(TAG, "Ratios: " + Arrays.toString(storedRatios));
+            Log.d(TAG, "Attacks: " + Arrays.toString(storedAttacks));
+            Log.d(TAG, "Releases: " + Arrays.toString(storedReleases));
+            updateAudioParams(storedLeftThresholds, storedRightThresholds, storedLeftGains, storedRightGains, storedRatios, storedAttacks, storedReleases);
+            Log.d(TAG, "Stored audio processing parameters applied");
+        } else {
+            Log.w(TAG, "No stored parameters to apply");
+        }
+    }
+
+    public void updateParams(float[] leftThresholds, float[] rightThresholds,
+                             float[] leftGains, float[] rightGains,
+                             float[] ratios, float[] attacks, float[] releases) {
+        // Store parameters
+        this.storedLeftThresholds = leftThresholds;
+        this.storedRightThresholds = rightThresholds;
+        this.storedLeftGains = leftGains;
+        this.storedRightGains = rightGains;
+        this.storedRatios = ratios;
+        this.storedAttacks = attacks;
+        this.storedReleases = releases;
+
+        if (isProcessing) {
+            applyStoredParams();
+        } else {
+            Log.d(TAG, "Parameters stored. Will be applied when processing starts.");
         }
     }
 
@@ -103,15 +160,6 @@ public class AudioProcessingService extends Service {
             Log.d(TAG, "Amplification set to " + amp);
         } else {
             Log.w(TAG, "Attempted to set amplification while processing is not active");
-        }
-    }
-
-    public void updateParams(float[] thresholds, float[] ratios, float[] attacks, float[] releases, float[] gains) {
-        if (isProcessing) {
-            updateAudioParams(thresholds, ratios, attacks, releases, gains);
-            Log.d(TAG, "Audio processing parameters updated");
-        } else {
-            Log.w(TAG, "Attempted to update params while processing is not active");
         }
     }
 
