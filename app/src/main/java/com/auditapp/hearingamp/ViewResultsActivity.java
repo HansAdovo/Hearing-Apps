@@ -19,6 +19,7 @@ import com.jjoe64.graphview.series.LineGraphSeries;
 import com.jjoe64.graphview.series.PointsGraphSeries;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -28,6 +29,7 @@ import java.util.Set;
 
 public class ViewResultsActivity extends AppCompatActivity {
 
+    private static final String TAG = "ViewResultsActivity";
     private Button btnExportAllPatientData, btnDeleteAllPatientProfiles, btnReturnToTitle;
     private TextView tvCurrentFrequency;
     private ExpandableListView expandableListView;
@@ -49,6 +51,7 @@ public class ViewResultsActivity extends AppCompatActivity {
 
     @Override
     public void onBackPressed() {
+        super.onBackPressed();
         Intent intent = new Intent(ViewResultsActivity.this, MainActivity.class);
         startActivity(intent);
         finish(); // Finish the current activity
@@ -198,7 +201,6 @@ public class ViewResultsActivity extends AppCompatActivity {
 
         DataPoint[] dataPoints;
         if (testCounts.size() == 1) {
-            // If there's only one point, create two points to show a horizontal line
             dataPoints = new DataPoint[]{
                     new DataPoint(0, testCounts.get(0)),
                     new DataPoint(1, testCounts.get(0))
@@ -211,11 +213,13 @@ public class ViewResultsActivity extends AppCompatActivity {
         }
 
         LineGraphSeries<DataPoint> series = new LineGraphSeries<>(dataPoints);
+        series.setColor(Color.BLUE);
         series.setDrawDataPoints(true);
         series.setDataPointsRadius(10);
         series.setThickness(5);
 
         PointsGraphSeries<DataPoint> points = new PointsGraphSeries<>(dataPoints);
+        points.setColor(Color.BLUE);
         points.setCustomShape((canvas, paint, x, y, dataPoint) -> {
             paint.setColor(Color.BLACK);
             paint.setTextSize(30);
@@ -226,15 +230,40 @@ public class ViewResultsActivity extends AppCompatActivity {
         graph.addSeries(series);
         graph.addSeries(points);
         graph.setTitle(String.format(titleFormat, testType, testGroup));
+
+        // Configure grid label renderer
         graph.getGridLabelRenderer().setHorizontalAxisTitle(getString(R.string.axis_test_instance));
         graph.getGridLabelRenderer().setVerticalAxisTitle(getString(R.string.axis_volume_level_db));
+        graph.getGridLabelRenderer().setHorizontalLabelsColor(Color.BLACK);
+        graph.getGridLabelRenderer().setVerticalLabelsColor(Color.BLACK);
+        graph.getGridLabelRenderer().setHorizontalAxisTitleColor(Color.BLACK);
+        graph.getGridLabelRenderer().setVerticalAxisTitleColor(Color.BLACK);
+        graph.getGridLabelRenderer().setGridColor(Color.LTGRAY);
+        graph.getGridLabelRenderer().setHighlightZeroLines(true);
 
-        // Adjust the viewport
+        // Set title color
+        graph.setTitleColor(Color.BLACK);
+
+        // Configure viewport
         graph.getViewport().setMinX(0);
         graph.getViewport().setMaxX(Math.max(1, dataPoints.length - 1));
         graph.getViewport().setXAxisBoundsManual(true);
+        graph.getViewport().setScalable(true);
+        graph.getViewport().setScrollable(true);
 
-        // Add data point tap listener for toast messages
+        // Find min and max Y values
+        int minY = Integer.MAX_VALUE;
+        int maxY = Integer.MIN_VALUE;
+        for (DataPoint dp : dataPoints) {
+            minY = Math.min(minY, (int) dp.getY());
+            maxY = Math.max(maxY, (int) dp.getY());
+        }
+
+        // Set Y axis bounds with some padding
+        graph.getViewport().setMinY(Math.max(0, minY - 10));
+        graph.getViewport().setMaxY(maxY + 10);
+        graph.getViewport().setYAxisBoundsManual(true);
+
         series.setOnDataPointTapListener((s, dataPoint) -> {
             String ear = titleFormat.contains("Left") ? "Left" : "Right";
             Toast.makeText(ViewResultsActivity.this, ear + " Ear: " + dataPoint.getY() + " dB", Toast.LENGTH_SHORT).show();
@@ -242,7 +271,110 @@ public class ViewResultsActivity extends AppCompatActivity {
     }
 
     private void exportAllPatientData() {
-        // Logic for exporting all patient data
+        Log.d(TAG, "Starting exportAllPatientData");
+        float[] leftThresholds = new float[4];
+        float[] rightThresholds = new float[4];
+        float[] leftMCLs = new float[4];
+        float[] rightMCLs = new float[4];
+        float[] leftGains = new float[4];
+        float[] rightGains = new float[4];
+
+        prepareAudioProcessingData(leftThresholds, rightThresholds, leftMCLs, rightMCLs, leftGains, rightGains);
+
+        Log.d(TAG, "Prepared audio processing data:");
+        for (int i = 0; i < 4; i++) {
+            Log.d(TAG, String.format("Band %d: Left Threshold = %.2f, Right Threshold = %.2f, " +
+                            "Left MCL = %.2f, Right MCL = %.2f, Left Gain = %.2f, Right Gain = %.2f",
+                    i, leftThresholds[i], rightThresholds[i], leftMCLs[i], rightMCLs[i], leftGains[i], rightGains[i]));
+        }
+
+        // Save parameters to SharedPreferences
+        SharedPreferences sharedPreferences = getSharedPreferences("AudioProcessingParams", MODE_PRIVATE);
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        editor.putString("leftThresholds", Arrays.toString(leftThresholds));
+        editor.putString("rightThresholds", Arrays.toString(rightThresholds));
+        editor.putString("leftGains", Arrays.toString(leftGains));
+        editor.putString("rightGains", Arrays.toString(rightGains));
+
+        float[] ratios = new float[]{2.0f, 2.0f, 2.0f, 2.0f};
+        float[] attacks = new float[]{0.005f, 0.005f, 0.005f, 0.005f};
+        float[] releases = new float[]{0.05f, 0.05f, 0.05f, 0.05f};
+
+        editor.putString("ratios", Arrays.toString(ratios));
+        editor.putString("attacks", Arrays.toString(attacks));
+        editor.putString("releases", Arrays.toString(releases));
+
+        editor.apply();
+
+        Log.d(TAG, "Audio processing parameters saved to SharedPreferences");
+        Toast.makeText(this, getString(R.string.audio_processing_parameters_saved), Toast.LENGTH_SHORT).show();
+    }
+
+    private void prepareAudioProcessingData(float[] leftThresholds, float[] rightThresholds,
+                                            float[] leftMCLs, float[] rightMCLs,
+                                            float[] leftGains, float[] rightGains) {
+        Log.d(TAG, "Starting prepareAudioProcessingData");
+        String[] frequencyBands = {"250-750", "751-1500", "1501-3000", "3001-8000"};
+
+        for (int i = 0; i < frequencyBands.length; i++) {
+            float sumLeftThreshold = 0, sumRightThreshold = 0;
+            float sumLeftMCL = 0, sumRightMCL = 0;
+            int countThreshold = 0, countMCL = 0;
+
+            Log.d(TAG, "Processing frequency band: " + frequencyBands[i]);
+
+            for (List<TestResult> resultList : listDataChild.values()) {
+                for (TestResult result : resultList) {
+                    int freq = Integer.parseInt(result.getFrequency().replace(" Hz", ""));
+                    if (isInFrequencyBand(freq, frequencyBands[i])) {
+                        if (result.getTestType().equalsIgnoreCase("threshold")) {
+                            sumLeftThreshold += result.getLeftEarDbThreshold();
+                            sumRightThreshold += result.getRightEarDbThreshold();
+                            countThreshold++;
+                            Log.d(TAG, String.format("Threshold - Frequency: %d Hz, Left: %d, Right: %d",
+                                    freq, result.getLeftEarDbThreshold(), result.getRightEarDbThreshold()));
+                        } else if (result.getTestType().equalsIgnoreCase("mcl")) {
+                            sumLeftMCL += result.getLeftEarDbThreshold();  // Assuming MCL is stored in DbThreshold
+                            sumRightMCL += result.getRightEarDbThreshold();
+                            countMCL++;
+                            Log.d(TAG, String.format("MCL - Frequency: %d Hz, Left: %d, Right: %d",
+                                    freq, result.getLeftEarDbThreshold(), result.getRightEarDbThreshold()));
+                        }
+                    }
+                }
+            }
+
+            if (countThreshold > 0) {
+                leftThresholds[i] = sumLeftThreshold / countThreshold;
+                rightThresholds[i] = sumRightThreshold / countThreshold;
+            } else {
+                leftThresholds[i] = rightThresholds[i] = 0;
+                Log.w(TAG, "No threshold data found for frequency band: " + frequencyBands[i]);
+            }
+
+            if (countMCL > 0) {
+                leftMCLs[i] = sumLeftMCL / countMCL;
+                rightMCLs[i] = sumRightMCL / countMCL;
+            } else {
+                leftMCLs[i] = rightMCLs[i] = 0;
+                Log.w(TAG, "No MCL data found for frequency band: " + frequencyBands[i]);
+            }
+
+            leftGains[i] = leftMCLs[i] - leftThresholds[i];
+            rightGains[i] = rightMCLs[i] - rightThresholds[i];
+
+            Log.d(TAG, String.format("Band %s: Left Threshold = %.2f, Right Threshold = %.2f, " +
+                            "Left MCL = %.2f, Right MCL = %.2f, Left Gain = %.2f, Right Gain = %.2f",
+                    frequencyBands[i], leftThresholds[i], rightThresholds[i],
+                    leftMCLs[i], rightMCLs[i], leftGains[i], rightGains[i]));
+        }
+    }
+
+    private boolean isInFrequencyBand(int frequency, String band) {
+        String[] range = band.split("-");
+        int low = Integer.parseInt(range[0]);
+        int high = Integer.parseInt(range[1]);
+        return frequency >= low && frequency <= high;
     }
 
     private void showDeleteConfirmationDialog() {

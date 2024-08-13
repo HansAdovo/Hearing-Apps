@@ -139,7 +139,12 @@
                         android:layout_height="wrap_content"
                         android:layout_gravity="center"
                         android:max="100"
-                        android:rotation="270" />
+                        android:rotation="270"
+                        android:progressDrawable="@android:drawable/progress_horizontal"
+                        android:thumb="@android:drawable/btn_radio"
+                        android:splitTrack="false"
+                        android:progressTint="#2196F3"
+                        android:progressBackgroundTint="#CCCCCC" />
 
                 </FrameLayout>
 
