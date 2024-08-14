@@ -1,4 +1,4 @@
-/*
+/**
  * Hearing Amplification Engine
  *
  * This code implements a real-time hearing amplification system for Android devices using the Oboe library.
