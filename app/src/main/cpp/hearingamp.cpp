@@ -2,12 +2,11 @@
  * Hearing Amplification Engine
  *
  * This code implements a real-time hearing amplification system for Android devices using the Oboe library.
- * It uses a multi-band approach, splitting the audio into five frequency ranges:
- * 1. 20-300 Hz
- * 2. 300-1000 Hz
- * 3. 1000-3000 Hz
- * 4. 3000-6000 Hz
- * 5. 6000-8000 Hz
+ * It uses a multi-band approach, splitting the audio into four frequency ranges:
+ * 1. 250-750 Hz
+ * 2. 751-1500 Hz
+ * 3. 1501-3000 Hz
+ * 4. 3001-8000 Hz
  *
  * Key components and features:
  * - Digital biquad bandpass filters separate the input audio into frequency bands.
@@ -48,7 +47,7 @@ constexpr int DEFAULT_SAMPLE_RATE = 48000;
 constexpr int DEFAULT_CHANNEL_COUNT = 2;
 constexpr int FRAMES_PER_CALLBACK = 64;
 constexpr int BUFFER_SIZE_FRAMES = 512;
-constexpr int NUM_BANDS = 5;
+constexpr int NUM_BANDS = 4;
 
 // Structure to hold Wide Dynamic Range Compression (WDRC) parameters
 struct WDRCParams {
@@ -176,13 +175,12 @@ public:
     HearingAmpEngine()
             : mInputBuffer(BUFFER_SIZE_FRAMES * DEFAULT_CHANNEL_COUNT),
               mOutputBuffer(BUFFER_SIZE_FRAMES * DEFAULT_CHANNEL_COUNT),
-              mAmplification(2.0f),
+              mAmplification(2.5f),
               mFilters{
-                      BandpassFilter(DEFAULT_SAMPLE_RATE, 20, 300),
-                      BandpassFilter(DEFAULT_SAMPLE_RATE, 300, 1000),
-                      BandpassFilter(DEFAULT_SAMPLE_RATE, 1000, 3000),
-                      BandpassFilter(DEFAULT_SAMPLE_RATE, 3000, 6000),
-                      BandpassFilter(DEFAULT_SAMPLE_RATE, 6000, 8000)
+                      BandpassFilter(DEFAULT_SAMPLE_RATE, 250, 750),
+                      BandpassFilter(DEFAULT_SAMPLE_RATE, 751, 1500),
+                      BandpassFilter(DEFAULT_SAMPLE_RATE, 1501, 3000),
+                      BandpassFilter(DEFAULT_SAMPLE_RATE, 3001, 8000)
               } {
         setupWDRC();
         LOGD("HearingAmpEngine constructed with BUFFER_SIZE_FRAMES=%d, FRAMES_PER_CALLBACK=%d", BUFFER_SIZE_FRAMES, FRAMES_PER_CALLBACK);
