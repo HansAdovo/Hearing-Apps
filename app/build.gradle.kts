@@ -10,8 +10,8 @@ android {
         applicationId = "com.auditapp.hearingamp"
         minSdk = 21
         targetSdk = 34
-        versionCode = 104
-        versionName = "104.0"
+        versionCode = 106
+        versionName = "106.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

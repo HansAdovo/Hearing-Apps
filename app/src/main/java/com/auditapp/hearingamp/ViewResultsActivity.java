@@ -310,31 +310,55 @@ public class ViewResultsActivity extends AppCompatActivity {
         Toast.makeText(this, getString(R.string.audio_processing_parameters_saved), Toast.LENGTH_SHORT).show();
     }
 
+    /**
+     * Prepares audio processing data based on hearing test results.
+     * This method calculates average thresholds, Most Comfortable Levels (MCLs),
+     * and gains for both left and right ears across four frequency bands.
+     *
+     * @param leftThresholds  Array to store average left ear thresholds for each frequency band
+     * @param rightThresholds Array to store average right ear thresholds for each frequency band
+     * @param leftMCLs        Array to store average left ear MCLs for each frequency band
+     * @param rightMCLs       Array to store average right ear MCLs for each frequency band
+     * @param leftGains       Array to store calculated left ear gains for each frequency band
+     * @param rightGains      Array to store calculated right ear gains for each frequency band
+     */
     private void prepareAudioProcessingData(float[] leftThresholds, float[] rightThresholds,
                                             float[] leftMCLs, float[] rightMCLs,
                                             float[] leftGains, float[] rightGains) {
         Log.d(TAG, "Starting prepareAudioProcessingData");
+
+        // Define the frequency bands used for audio processing
         String[] frequencyBands = {"250-750", "751-1500", "1501-3000", "3001-8000"};
 
+        // Iterate through each frequency band
         for (int i = 0; i < frequencyBands.length; i++) {
+            // Initialize variables to accumulate threshold and MCL values
             float sumLeftThreshold = 0, sumRightThreshold = 0;
             float sumLeftMCL = 0, sumRightMCL = 0;
             int countThreshold = 0, countMCL = 0;
 
             Log.d(TAG, "Processing frequency band: " + frequencyBands[i]);
 
+            // Iterate through all test results
             for (List<TestResult> resultList : listDataChild.values()) {
                 for (TestResult result : resultList) {
+                    // Extract the frequency value from the result
                     int freq = Integer.parseInt(result.getFrequency().replace(" Hz", ""));
+
+                    // Check if the frequency is within the current band
                     if (isInFrequencyBand(freq, frequencyBands[i])) {
+                        // Process threshold test results
                         if (result.getTestType().equalsIgnoreCase("threshold")) {
                             sumLeftThreshold += result.getLeftEarDbThreshold();
                             sumRightThreshold += result.getRightEarDbThreshold();
                             countThreshold++;
                             Log.d(TAG, String.format("Threshold - Frequency: %d Hz, Left: %d, Right: %d",
                                     freq, result.getLeftEarDbThreshold(), result.getRightEarDbThreshold()));
-                        } else if (result.getTestType().equalsIgnoreCase("mcl")) {
-                            sumLeftMCL += result.getLeftEarDbThreshold();  // Assuming MCL is stored in DbThreshold
+                        }
+                        // Process MCL (Most Comfortable Level) test results
+                        else if (result.getTestType().equalsIgnoreCase("mcl")) {
+                            // Note: MCL is also stored in DbThreshold field
+                            sumLeftMCL += result.getLeftEarDbThreshold();
                             sumRightMCL += result.getRightEarDbThreshold();
                             countMCL++;
                             Log.d(TAG, String.format("MCL - Frequency: %d Hz, Left: %d, Right: %d",
@@ -344,25 +368,32 @@ public class ViewResultsActivity extends AppCompatActivity {
                 }
             }
 
+            // Calculate average thresholds for the current frequency band
             if (countThreshold > 0) {
                 leftThresholds[i] = sumLeftThreshold / countThreshold;
                 rightThresholds[i] = sumRightThreshold / countThreshold;
             } else {
+                // Set thresholds to 0 if no data is found
                 leftThresholds[i] = rightThresholds[i] = 0;
                 Log.w(TAG, "No threshold data found for frequency band: " + frequencyBands[i]);
             }
 
+            // Calculate average MCLs for the current frequency band
             if (countMCL > 0) {
                 leftMCLs[i] = sumLeftMCL / countMCL;
                 rightMCLs[i] = sumRightMCL / countMCL;
             } else {
+                // Set MCLs to 0 if no data is found
                 leftMCLs[i] = rightMCLs[i] = 0;
                 Log.w(TAG, "No MCL data found for frequency band: " + frequencyBands[i]);
             }
 
+            // Calculate gains for each ear
+            // Note: This is a simple gain calculation and will need improvement
             leftGains[i] = leftMCLs[i] - leftThresholds[i];
             rightGains[i] = rightMCLs[i] - rightThresholds[i];
 
+            // Log the calculated values for the current frequency band
             Log.d(TAG, String.format("Band %s: Left Threshold = %.2f, Right Threshold = %.2f, " +
                             "Left MCL = %.2f, Right MCL = %.2f, Left Gain = %.2f, Right Gain = %.2f",
                     frequencyBands[i], leftThresholds[i], rightThresholds[i],
