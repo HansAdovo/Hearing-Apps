@@ -437,7 +437,7 @@ public class TestMCLActivity extends AppCompatActivity {
     }
 
     private int getFrequencyIndex(int frequency) {
-        int[] predefinedFrequencies = {250, 500, 750, 1000, 1500, 2000, 3000, 4000, 6000, 8000}; // Example list
+        int[] predefinedFrequencies = {250, 500, 750, 1000, 1500, 2000, 3000, 4000, 6000, 8000};
         for (int i = 0; i < predefinedFrequencies.length; i++) {
             if (predefinedFrequencies[i] == frequency) {
                 Log.d("TestMCLActivity", "Frequency " + frequency + " found at index: " + i);

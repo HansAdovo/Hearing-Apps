@@ -481,7 +481,7 @@ public class CalibrationActivity extends AppCompatActivity {
             currentSettingTextView.setText(String.format(getString(R.string.current_setting), currentSettingName));
             loadSetting(currentSettingName);
         } else {
-            currentSettingTextView.setText(getString(R.string.current_setting_no_setting)); // Update this line
+            currentSettingTextView.setText(getString(R.string.current_setting_no_setting));
         }
     }
 
