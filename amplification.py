@@ -63,6 +63,8 @@ time_curve, fft_curve = plots(win)
 audio_buffer = np.array([], dtype=np.int16)
 processed_audio_buffer = np.array([], dtype=np.int16)
 
+# 5th order Butterworth bandpass filter to filter out noise
+# This is the helper function to create the filter
 def bandPassHelper(lowcut, highcut, fs, order=5):
     nyq = 0.5 * fs
     low = lowcut / nyq
@@ -70,15 +72,21 @@ def bandPassHelper(lowcut, highcut, fs, order=5):
     b, a = butter(order, [low, high], btype='band')
     return b, a
 
+# This is the main function to apply the bandpass butterworth filter
 def bandPassFilter(data, lowcut, highcut, fs, order=5):
     b, a = bandPassHelper(lowcut, highcut, fs, order=order)
     y = lfilter(b, a, data)
     return y
 
+# WDRC (Wide Dynamic Range Compression) algorithm to make the audio output more clear
+# This is a technique used to make quiet sounds louder and loud sounds softer, making the overall volume more comfortable and easier to hear.
+# This is the main function to apply the WDRC algorithm
 def wdrc(data, threshold, ratio, attack, release, gain, fs):
+    # Convert attack and release times to alpha values
     alphaAttack = np.exp(-np.log(9) / (fs * attack))
     alphaRelease = np.exp(-np.log(9) / (fs * release))
 
+    # Convert threshold and gain to linear scale
     thresholdLinear = 10 ** (threshold / 20)
     gainLinear = 10 ** (gain / 20)
     
@@ -87,6 +95,7 @@ def wdrc(data, threshold, ratio, attack, release, gain, fs):
     gain = 1.0
     
     # Apply WDRC to each sample of the input data
+    # The WDRC algorithm is applied to each sample of the input data to adjust the gain based on the input level and the desired gain.
     for i in range(len(data)):
         inputLevel = abs(data[i])
 
@@ -104,8 +113,11 @@ def wdrc(data, threshold, ratio, attack, release, gain, fs):
         output[i] = gainLinear * gain * data[i]
     return output
 
+# This function is called to process the audio data using the WDRC algorithm and butterworth bandpass filter
+# The audio data is split into frequency bands and the WDRC algorithm is applied to each band separately.
+# The processed audio data is then combined and returned.
 def processWDRC(data, fs, wdrc_params):
-    # Split into frequency bands
+    # Apply bandpass butterworth filter to split audio frequency bands
     low = bandPassFilter(data, 20, 300, fs)
     mid_low = bandPassFilter(data, 300, 1000, fs)
     mid_high = bandPassFilter(data, 1000, 3000, fs)
@@ -119,10 +131,11 @@ def processWDRC(data, fs, wdrc_params):
     
     # Combine bands and return the processed audio
     processed_data = low + mid_low + mid_high + high
-
     return processed_data
 
 # This function is called periodically from the timer to update the plots and also the audio output
+# The function reads audio data from the microphone, processes it using the WDRC algorithm, and then outputs the processed audio.
+# Real-time audio data is displayed in the time domain plot and the frequency domain plot.
 def update():
     global stream, audio_buffer, processed_audio_buffer, output_stream
     
@@ -131,8 +144,10 @@ def update():
     dataSample = np.frombuffer(rawData, dtype=np.int16)
     audio_buffer = np.append(audio_buffer, dataSample)
     
-    #dataSample = processWDRC(dataSample, RATE, wdrc_params)
+    # Process audio data using WDRC algorithm and butterworth bandpass filter
+    dataSample = processWDRC(dataSample, RATE, wdrc_params)
     
+    # Append processed audio data to the buffer
     processed_audio_buffer = np.append(processed_audio_buffer, dataSample)
 
     # Output audio data
@@ -156,8 +171,8 @@ timer.start(10)
 timer.timeout.connect(update)
 timer.start(10)  # Interval in milliseconds to update the plot
 
+# Function to save audio data to a file after the application is closed
 def save_audio(filename, audio_data, rate):
-    # Ensure audio_data is in the right format
     audio_data = np.asarray(audio_data, dtype=np.int16)
     
     with wave.open(filename, 'wb') as wf:
@@ -167,6 +182,7 @@ def save_audio(filename, audio_data, rate):
         wf.writeframes(audio_data.tobytes())
 
 # Start Qt event loop unless running in interactive mode or using py side
+# Main function to run the application
 if __name__ == '__main__':
     try:
         if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
@@ -179,8 +195,6 @@ if __name__ == '__main__':
         stream.stop_stream()
         stream.close()
         audio.terminate()
-
         output_stream.stop_stream()
         output_stream.close()
-
         audio.terminate()
