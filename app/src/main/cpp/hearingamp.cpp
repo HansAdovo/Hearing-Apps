@@ -169,41 +169,50 @@ public:
             return oboe::DataCallbackResult::Stop;
         }
 
+        static int callbackCounter = 0;
+        static float maxInputSample = 0.0f;
+        static float maxOutputSample = 0.0f;
+
         if (stream->getDirection() == oboe::Direction::Input) {
             std::vector<float> processedBuffer(totalFrames, 0.0f);
 
             for (int i = 0; i < numFrames; ++i) {
                 for (int channel = 0; channel < channelCount; ++channel) {
                     size_t index = i * channelCount + channel;
-                    if (index >= totalFrames) {
-                        LOGE("Buffer overflow in input processing");
+                    if (index >= totalFrames || index >= processedBuffer.size()) {
+                        LOGE("Buffer overflow in input processing: index=%zu, totalFrames=%zu, bufferSize=%zu",
+                             index, totalFrames, processedBuffer.size());
                         return oboe::DataCallbackResult::Stop;
                     }
                     float sample = data[index];
+                    maxInputSample = std::max(maxInputSample, std::abs(sample));
+
                     float processedSample = 0.0f;
                     for (int band = 0; band < NUM_BANDS; ++band) {
                         float filteredSample = mFilters[band].process(sample);
                         processedSample += applyWDRC(filteredSample, band, channel) / NUM_BANDS;
                     }
-                    processedBuffer[index] = std::clamp(processedSample * mAmplification, -1.0f, 1.0f);
+                    processedSample = std::clamp(processedSample * mAmplification, -1.0f, 1.0f);
+                    processedBuffer[index] = processedSample;
+                    maxOutputSample = std::max(maxOutputSample, std::abs(processedSample));
                 }
             }
 
             mOutputBuffer.write(processedBuffer.data(), processedBuffer.size());
-            LOGV("Input processed: %d frames, buffer size: %zu", numFrames, mOutputBuffer.size());
+
+            // Log every 100 callbacks (adjust as needed)
+            if (++callbackCounter % 100 == 0) {
+                LOGD("Audio processing: MaxInput=%.4f, MaxOutput=%.4f, Frames=%d, BufferSize=%zu",
+                     maxInputSample, maxOutputSample, numFrames, mOutputBuffer.size());
+                maxInputSample = 0.0f;
+                maxOutputSample = 0.0f;
+            }
         } else if (stream->getDirection() == oboe::Direction::Output) {
             size_t framesRead = mOutputBuffer.read(data, totalFrames);
             if (framesRead < totalFrames) {
-                size_t remainingFrames = totalFrames - framesRead;
-                if (remainingFrames > totalFrames) {
-                    LOGE("Buffer overflow in onAudioReady");
-                    return oboe::DataCallbackResult::Stop;
-                }
                 std::fill(data + framesRead, data + totalFrames, 0.0f);
-                LOGW("Buffer underrun: read %zu frames, expected %zu. Buffer size: %zu",
-                     framesRead, totalFrames, mOutputBuffer.size());
+                LOGW("Buffer underrun: read %zu frames, expected %zu", framesRead, totalFrames);
             }
-            LOGV("Output delivered: %zu frames", framesRead);
         } else {
             LOGE("Unknown stream direction");
             return oboe::DataCallbackResult::Stop;
@@ -274,7 +283,16 @@ private:
             compressionGain = std::pow(envelope / thresholdLinear, 1.0f / params.ratio - 1.0f);
         }
 
-        return input * gainLinear * compressionGain;
+        float output = input * gainLinear * compressionGain;
+
+        static float lastCompressionGain[NUM_BANDS][2] = {{1.0f}};
+        if (std::abs(compressionGain - lastCompressionGain[band][channel]) > 0.1f) {
+            LOGD("WDRC: Band=%d, Channel=%d, Threshold=%.2f, Ratio=%.2f, Gain=%.2f, CompGain=%.2f",
+                 band, channel, params.threshold, params.ratio, params.gain, compressionGain);
+            lastCompressionGain[band][channel] = compressionGain;
+        }
+
+        return output;
     }
 };
 
