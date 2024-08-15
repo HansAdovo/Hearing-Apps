@@ -45,8 +45,8 @@
 // Define constants for audio processing
 constexpr int DEFAULT_SAMPLE_RATE = 48000;
 constexpr int DEFAULT_CHANNEL_COUNT = 2;
-constexpr int FRAMES_PER_CALLBACK = 64;
-constexpr int BUFFER_SIZE_FRAMES = 512;
+constexpr int FRAMES_PER_CALLBACK = 16;
+constexpr int BUFFER_SIZE_FRAMES = 64;
 constexpr int NUM_BANDS = 4;
 
 // Structure to hold Wide Dynamic Range Compression (WDRC) parameters
